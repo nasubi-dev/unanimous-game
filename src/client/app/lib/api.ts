@@ -8,13 +8,26 @@ import type {
 
 const BASE = "";
 
+export class ApiError extends Error {
+  status: number;
+  body?: string;
+  constructor(status: number, message: string, body?: string) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export async function createRoom(body: CreateRoomRequest): Promise<CreateRoomResponse> {
   const res = await fetch(`${BASE}/api/rooms`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error("create room failed");
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "create room failed", text);
+  }
   return res.json();
 }
 
@@ -27,13 +40,19 @@ export async function joinRoom(
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error("join room failed");
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "join room failed", text);
+  }
   return res.json();
 }
 
 export async function getRoomState(id: string): Promise<Room> {
   const res = await fetch(`${BASE}/api/rooms/${id}/state`);
-  if (!res.ok) throw new Error("get state failed");
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "get state failed", text);
+  }
   return res.json();
 }
 

@@ -11,6 +11,7 @@ export default function Room() {
   const id = params.id!;
   const [state, setState] = useState<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     let ws = connectWs(id);
@@ -36,18 +37,30 @@ export default function Room() {
     };
     getRoomState(id)
       .then(setState)
-      .catch(() => {});
+      .catch(() => setToast("状態の取得に失敗しました"));
     return () => ws.close();
   }, [id]);
 
   if (!state) return <p>Loading...</p>;
   return (
-    <div style={{ padding: 16 }}>
-      <h1>Room #{state.id}</h1>
-      <h2>Users</h2>
-      <ul>
+    <div className="p-4">
+      {toast && (
+        <div className="mb-3 inline-block bg-red-600 text-white text-sm px-3 py-2 rounded">
+          {toast}
+        </div>
+      )}
+      <h1 className="text-2xl font-semibold">Room #{state.id}</h1>
+      <h2 className="mt-4 mb-2 font-medium">Users</h2>
+      <ul className="space-y-1">
         {state.users?.map((u: any) => (
-          <li key={u.id}>{u.name}</li>
+          <li key={u.id} className="flex items-center gap-2">
+            <span>{u.name}</span>
+            {u.isGM && (
+              <span className="text-[10px] bg-amber-500 text-white rounded px-1 py-0.5 uppercase tracking-wide">
+                GM
+              </span>
+            )}
+          </li>
         ))}
       </ul>
     </div>
