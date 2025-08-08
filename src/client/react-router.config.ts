@@ -1,7 +1,6 @@
 import type { Config } from "@react-router/dev/config";
 
 export default {
-  // Config options...
-  // Server-side render by default, to enable SPA mode set this to `false`
-  ssr: true,
+  // Cloudflare Workers での簡易ホスティングのため SPA ビルドに切替
+  ssr: false,
 } satisfies Config;
