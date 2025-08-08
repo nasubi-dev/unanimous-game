@@ -65,6 +65,106 @@ app.patch("/api/rooms/:id/settings", async (c) => {
   });
 });
 
+// ゲーム開始（GM専用）
+app.post("/api/rooms/:id/start", async (c) => {
+  const idParam = c.req.param("id");
+  const id = c.env.ROOM_DURABLE.idFromName(idParam);
+  const stub = c.env.ROOM_DURABLE.get(id);
+  const res = await stub.fetch(new URL("/start", "http://do").toString(), {
+    method: "POST",
+    body: await c.req.raw.text(),
+    headers: { "content-type": "application/json" },
+  });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": "application/json" },
+  });
+});
+
+// ラウンド作成（GM専用）
+app.post("/api/rooms/:id/round", async (c) => {
+  const idParam = c.req.param("id");
+  const id = c.env.ROOM_DURABLE.idFromName(idParam);
+  const stub = c.env.ROOM_DURABLE.get(id);
+  const res = await stub.fetch(new URL("/round", "http://do").toString(), {
+    method: "POST",
+    body: await c.req.raw.text(),
+    headers: { "content-type": "application/json" },
+  });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": "application/json" },
+  });
+});
+
+// お題設定
+app.post("/api/rooms/:id/round/:roundId/topic", async (c) => {
+  const idParam = c.req.param("id");
+  const roundId = c.req.param("roundId");
+  const id = c.env.ROOM_DURABLE.idFromName(idParam);
+  const stub = c.env.ROOM_DURABLE.get(id);
+  const res = await stub.fetch(new URL(`/round/${roundId}/topic`, "http://do").toString(), {
+    method: "POST",
+    body: await c.req.raw.text(),
+    headers: { "content-type": "application/json" },
+  });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": "application/json" },
+  });
+});
+
+// 回答送信
+app.post("/api/rooms/:id/round/:roundId/answer", async (c) => {
+  const idParam = c.req.param("id");
+  const roundId = c.req.param("roundId");
+  const id = c.env.ROOM_DURABLE.idFromName(idParam);
+  const stub = c.env.ROOM_DURABLE.get(id);
+  const res = await stub.fetch(new URL(`/round/${roundId}/answer`, "http://do").toString(), {
+    method: "POST",
+    body: await c.req.raw.text(),
+    headers: { "content-type": "application/json" },
+  });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": "application/json" },
+  });
+});
+
+// 回答オープン（GM専用）
+app.post("/api/rooms/:id/round/:roundId/open", async (c) => {
+  const idParam = c.req.param("id");
+  const roundId = c.req.param("roundId");
+  const id = c.env.ROOM_DURABLE.idFromName(idParam);
+  const stub = c.env.ROOM_DURABLE.get(id);
+  const res = await stub.fetch(new URL(`/round/${roundId}/open`, "http://do").toString(), {
+    method: "POST",
+    body: await c.req.raw.text(),
+    headers: { "content-type": "application/json" },
+  });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": "application/json" },
+  });
+});
+
+// 結果判定（GM専用）
+app.post("/api/rooms/:id/round/:roundId/result", async (c) => {
+  const idParam = c.req.param("id");
+  const roundId = c.req.param("roundId");
+  const id = c.env.ROOM_DURABLE.idFromName(idParam);
+  const stub = c.env.ROOM_DURABLE.get(id);
+  const res = await stub.fetch(new URL(`/round/${roundId}/result`, "http://do").toString(), {
+    method: "POST",
+    body: await c.req.raw.text(),
+    headers: { "content-type": "application/json" },
+  });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": "application/json" },
+  });
+});
+
 // ヘルスチェック
 app.get("/api/health", (c) => c.json({ ok: true }));
 

@@ -5,6 +5,12 @@ import type {
   JoinRoomResponse,
   Room,
   UpdateSettingsRequest,
+  StartGameRequest,
+  CreateRoundRequest,
+  SetTopicRequest,
+  SubmitAnswerRequest,
+  OpenRoundRequest,
+  JudgeResultRequest,
 } from "../../../shared/types";
 
 const BASE = "";
@@ -71,6 +77,84 @@ export async function updateSettings(id: string, body: UpdateSettingsRequest): P
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new ApiError(res.status, "update settings failed", text);
+  }
+  return res.json();
+}
+
+export async function startGame(id: string, gmToken: string): Promise<{ ok: true }> {
+  const res = await fetch(`${BASE}/api/rooms/${id}/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ gmToken } satisfies StartGameRequest),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "start game failed", text);
+  }
+  return res.json();
+}
+
+export async function createRound(roomId: string, gmToken: string): Promise<{ roundId: string }> {
+  const res = await fetch(`${BASE}/api/rooms/${roomId}/round`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ gmToken } satisfies CreateRoundRequest),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "create round failed", text);
+  }
+  return res.json();
+}
+
+export async function setTopic(roomId: string, roundId: string, topic: string, setterId: string): Promise<{ ok: true }> {
+  const res = await fetch(`${BASE}/api/rooms/${roomId}/round/${roundId}/topic`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ roundId, topic, setterId } satisfies SetTopicRequest),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "set topic failed", text);
+  }
+  return res.json();
+}
+
+export async function submitAnswer(roomId: string, roundId: string, userId: string, value: string): Promise<{ ok: true }> {
+  const res = await fetch(`${BASE}/api/rooms/${roomId}/round/${roundId}/answer`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ roundId, userId, value } satisfies SubmitAnswerRequest),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "submit answer failed", text);
+  }
+  return res.json();
+}
+
+export async function openRound(roomId: string, roundId: string, gmToken: string): Promise<{ ok: true }> {
+  const res = await fetch(`${BASE}/api/rooms/${roomId}/round/${roundId}/open`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ roundId, gmToken } satisfies OpenRoundRequest),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "open round failed", text);
+  }
+  return res.json();
+}
+
+export async function judgeResult(roomId: string, roundId: string, unanimous: boolean, gmToken: string): Promise<{ ok: true }> {
+  const res = await fetch(`${BASE}/api/rooms/${roomId}/round/${roundId}/result`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ roundId, unanimous, gmToken } satisfies JudgeResultRequest),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "judge result failed", text);
   }
   return res.json();
 }
