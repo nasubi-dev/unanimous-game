@@ -1,0 +1,19 @@
+name = "unanimous-game"
+main = "src/server/index.ts"
+compatibility_date = "2024-06-20"
+
+[assets]
+# 本番/開発ともに React Router のビルド成果物を配信
+directory = "src/client/build/client"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "ROOM_DURABLE"
+class_name = "RoomDurable"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["RoomDurable"]
+
+[observability]
+logs = { enabled = true }
