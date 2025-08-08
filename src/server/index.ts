@@ -49,6 +49,22 @@ app.get("/api/rooms/:id/state", async (c) => {
   });
 });
 
+// ルーム設定更新（GM専用）
+app.patch("/api/rooms/:id/settings", async (c) => {
+  const idParam = c.req.param("id");
+  const id = c.env.ROOM_DURABLE.idFromName(idParam);
+  const stub = c.env.ROOM_DURABLE.get(id);
+  const res = await stub.fetch(new URL("/settings", "http://do").toString(), {
+    method: "PATCH",
+    body: await c.req.raw.text(),
+    headers: { "content-type": "application/json" },
+  });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": "application/json" },
+  });
+});
+
 // ヘルスチェック
 app.get("/api/health", (c) => c.json({ ok: true }));
 

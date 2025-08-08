@@ -4,6 +4,7 @@ import type {
   JoinRoomRequest,
   JoinRoomResponse,
   Room,
+  UpdateSettingsRequest,
 } from "../../../shared/types";
 
 const BASE = "";
@@ -60,3 +61,42 @@ export function connectWs(id: string): WebSocket {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   return new WebSocket(`${proto}://${location.host}/ws/${id}`);
 }
+
+export async function updateSettings(id: string, body: UpdateSettingsRequest): Promise<{ ok: true }> {
+  const res = await fetch(`${BASE}/api/rooms/${id}/settings`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "update settings failed", text);
+  }
+  return res.json();
+}
+
+export const gmTokenStore = {
+  key: (roomId: string) => `gmToken:${roomId}`,
+  save(roomId: string, token: string) {
+    localStorage.setItem(this.key(roomId), token);
+  },
+  load(roomId: string) {
+    return localStorage.getItem(this.key(roomId));
+  },
+  clear(roomId: string) {
+    localStorage.removeItem(this.key(roomId));
+  },
+};
+
+export const userIdStore = {
+  key: (roomId: string) => `userId:${roomId}`,
+  save(roomId: string, userId: string) {
+    localStorage.setItem(this.key(roomId), userId);
+  },
+  load(roomId: string) {
+    return localStorage.getItem(this.key(roomId));
+  },
+  clear(roomId: string) {
+    localStorage.removeItem(this.key(roomId));
+  },
+};

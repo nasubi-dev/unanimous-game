@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { ApiError, createRoom, joinRoom } from "../lib/api";
+import { ApiError, createRoom, joinRoom, gmTokenStore, userIdStore } from "../lib/api";
 
 function getOrCreatePlayerName(): string {
   let name = localStorage.getItem("playerName") || "";
@@ -33,8 +33,10 @@ export default function RoomGateway() {
     const name = getOrCreatePlayerName();
     setLoading("create");
     try {
-      const res = await createRoom({ name });
-      nav(`/room/${res.roomId}`);
+  const res = await createRoom({ name });
+  gmTokenStore.save(res.roomId, res.gmToken);
+  if (res.gmUserId) userIdStore.save(res.roomId, res.gmUserId);
+  nav(`/room/${res.roomId}`);
     } catch (e) {
       const err = e as ApiError;
       if (err.status === 400) setToast(err.body || "作成に失敗しました (400)");
@@ -51,7 +53,8 @@ export default function RoomGateway() {
     const name = getOrCreatePlayerName();
     setLoading("join");
     try {
-      await joinRoom(roomId, { name });
+  const jr = await joinRoom(roomId, { name });
+  if (jr?.userId) userIdStore.save(roomId, jr.userId);
       nav(`/room/${roomId}`);
     } catch (e) {
       const err = e as ApiError;

@@ -50,8 +50,15 @@ export type CreateRoomResponse = {
   roomId: string;
   gmId: string;
   gmToken: string;
+  gmUserId: string;
 };
 export type CreateRoomRequest = { name: string };
 
 export type JoinRoomRequest = { name: string };
 export type JoinRoomResponse = { userId: string };
+
+// Settings Update
+export type UpdateSettingsRequest = {
+  gmToken: string;
+  settings: Partial<RoomSettings>;
+};
