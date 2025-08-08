@@ -391,14 +391,15 @@ export class RoomDurable {
     
     // 全員順番モードの場合
     if (this.room.settings.topicMode === "all") {
-      const users = this.room.users.filter(u => !u.isGM);
-      if (users.length === 0) return "";
+      // 全てのユーザー（GMを含む）を対象とする
+      const allUsers = this.room.users;
+      if (allUsers.length === 0) return "";
       
       // 既存のラウンド数を基準にして次の人を選択
       const roundCount = this.room.rounds.length;
-      const nextUserIndex = roundCount % users.length;
-      console.log(`Setting topic setter: round=${roundCount}, userIndex=${nextUserIndex}, userId=${users[nextUserIndex]?.id}`);
-      return users[nextUserIndex]?.id || "";
+      const nextUserIndex = roundCount % allUsers.length;
+      console.log(`Setting topic setter (all users): round=${roundCount}, userIndex=${nextUserIndex}, userId=${allUsers[nextUserIndex]?.id}, userName=${allUsers[nextUserIndex]?.name}, isGM=${allUsers[nextUserIndex]?.isGM}`);
+      return allUsers[nextUserIndex]?.id || "";
     }
     
     return "";
