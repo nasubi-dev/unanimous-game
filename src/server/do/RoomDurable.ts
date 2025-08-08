@@ -26,9 +26,16 @@ export class RoomDurable {
     if (request.method === "POST" && url.pathname.endsWith("/create")) {
       const body = (await request.json().catch(() => ({}))) as {
         roomId?: string;
+        name?: string;
       };
       const providedId = (body.roomId ?? "").toString().trim();
+      const gmName = (body.name ?? "").toString().trim();
       const { roomId, gmId, gmToken } = this.initRoom(providedId);
+      // GM をユーザーとして登録
+      if (gmName) {
+        const gmUser = this.addUser(gmName, true);
+        // GM の userId を返したい場合はここで追加してもよい
+      }
       return Response.json({ roomId, gmId, gmToken });
     }
 
@@ -98,8 +105,8 @@ export class RoomDurable {
     return { roomId, gmId, gmToken };
   }
 
-  private addUser(name: string) {
-    const user = { id: crypto.randomUUID(), name, icon: "", isGM: false };
+  private addUser(name: string, isGM = false) {
+    const user = { id: crypto.randomUUID(), name, icon: "", isGM };
     this.room!.users.push(user);
     return user;
   }

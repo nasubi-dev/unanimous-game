@@ -1,4 +1,5 @@
 import type {
+  CreateRoomRequest,
   CreateRoomResponse,
   JoinRoomRequest,
   JoinRoomResponse,
@@ -7,8 +8,12 @@ import type {
 
 const BASE = "";
 
-export async function createRoom(): Promise<CreateRoomResponse> {
-  const res = await fetch(`${BASE}/api/rooms`, { method: "POST" });
+export async function createRoom(body: CreateRoomRequest): Promise<CreateRoomResponse> {
+  const res = await fetch(`${BASE}/api/rooms`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!res.ok) throw new Error("create room failed");
   return res.json();
 }

@@ -51,6 +51,7 @@ export type CreateRoomResponse = {
   gmId: string;
   gmToken: string;
 };
+export type CreateRoomRequest = { name: string };
 
 export type JoinRoomRequest = { name: string };
 export type JoinRoomResponse = { userId: string };

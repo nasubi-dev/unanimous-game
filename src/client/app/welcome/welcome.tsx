@@ -10,7 +10,8 @@ export function Welcome() {
   const nav = useNavigate();
 
   async function onCreate() {
-    const res = await createRoom();
+    if (!name) return;
+    const res = await createRoom({ name });
     setRoomId(res.roomId);
     nav(`/room/${res.roomId}`);
   }
