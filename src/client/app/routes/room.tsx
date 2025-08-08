@@ -661,22 +661,10 @@ export default function Room() {
               )}
             </div>
           ) : (
-            /* ラウンドがない場合の新しいラウンド作成 */
-            <>
-              <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                デバッグ: currentRound=null, isGM={isGM ? 'true' : 'false'}, gmToken={gmTokenStore.load(id) ? 'exists' : 'none'}
-              </div>
-              {isGM && (
-                <div className="text-center">
-                  <button
-                    onClick={handleCreateRound}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded font-medium"
-                  >
-                    最初のラウンドを始める
-                  </button>
-                </div>
-              )}
-            </>
+            /* ラウンドがまだ作成されていない場合のメッセージ */
+            <div className="text-center p-8 text-gray-500">
+              ラウンドを準備中...
+            </div>
           )}
 
           {/* 次のラウンドボタン（ゲーム終了していない場合のみ） */}

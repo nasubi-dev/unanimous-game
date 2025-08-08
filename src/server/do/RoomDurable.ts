@@ -101,8 +101,26 @@ export class RoomDurable {
         return new Response("forbidden", { status: 403 });
       
       this.room.status = "playing";
+      
+      // 自動で最初のラウンドを作成
+      const roundId = crypto.randomUUID();
+      const setterId = this.getNextTopicSetter();
+      
+      const newRound: Round = {
+        id: roundId,
+        topic: "",
+        setterId,
+        answers: [],
+        result: "unopened",
+        unanimous: null,
+      };
+      
+      this.room.rounds.push(newRound);
+      
       this.broadcast({ type: "gameStarted", room: this.room } satisfies ServerMessage);
-      return Response.json({ ok: true });
+      this.broadcast({ type: "roundCreated", round: newRound } satisfies ServerMessage);
+      
+      return Response.json({ ok: true, roundId });
     }
 
     // ラウンド作成
