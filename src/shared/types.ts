@@ -1,7 +1,7 @@
 export type User = {
   id: string;
   name: string;
-  icon: string;
+  icon: string | number;
   isGM: boolean;
 };
 
@@ -44,16 +44,24 @@ export type ServerMessage =
   | { type: "gameStarted"; room: Room }
   | { type: "roundCreated"; round: Round }
   | { type: "topicSet"; roundId: string; topic: string }
-  | { type: "answerSubmitted"; roundId: string; userId: string; hasAnswered: boolean; answeredUserIds: string[]; totalAnswers: number; totalUsers: number }
+  | {
+      type: "answerSubmitted";
+      roundId: string;
+      userId: string;
+      hasAnswered: boolean;
+      answeredUserIds: string[];
+      totalAnswers: number;
+      totalUsers: number;
+    }
   | { type: "roundOpened"; roundId: string; answers: Answer[] }
   | { type: "resultJudged"; roundId: string; unanimous: boolean }
   | { type: "gameFinished"; room: Room; winCondition: boolean }
   | { type: "settingsUpdated"; settings: RoomSettings }
   | { type: "error"; message: string };
 
-export type ClientMessage = 
+export type ClientMessage =
   | { type: "ping" }
-  | { type: "join"; name: string }
+  | { type: "join"; name: string; icon: string | number };
 
 // --- API DTOs ---
 export type CreateRoomResponse = {
@@ -62,9 +70,9 @@ export type CreateRoomResponse = {
   gmToken: string;
   gmUserId: string;
 };
-export type CreateRoomRequest = { name: string };
+export type CreateRoomRequest = { name: string; icon: string | number };
 
-export type JoinRoomRequest = { name: string };
+export type JoinRoomRequest = { name: string; icon: string | number };
 export type JoinRoomResponse = { userId: string };
 
 // Settings Update

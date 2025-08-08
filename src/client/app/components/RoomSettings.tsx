@@ -38,12 +38,12 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
 
   return (
     <div className="mb-6">
-      <h2 className="text-lg font-bold mb-3">ゲームルール</h2>
+      <h2 className="text-xl font-bold mb-3">ゲームルール</h2>
       <div className="bg-white dark:bg-gray-800 p-4 rounded border space-y-4">
         <div>
-          <label className="block text-sm mb-1">お題の出題者</label>
+          <label className="block text-base mb-1">お題の出題者</label>
           <div className="space-y-2">
-            <label className="inline-flex items-center gap-2">
+            <label className="inline-flex items-center gap-2 text-base">
               <input
                 type="radio"
                 name="topicMode"
@@ -53,7 +53,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
               />
               <span>GMが決める</span>
             </label>
-            <label className="inline-flex items-center gap-2">
+            <label className="inline-flex items-center gap-2 text-base">
               <input
                 type="radio"
                 name="topicMode"
@@ -67,7 +67,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
         </div>
 
         <div>
-          <label className="block text-sm mb-1">勝利条件</label>
+          <label className="block text-base mb-1">勝利条件</label>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <select
@@ -82,7 +82,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
                     },
                   }) : null);
                 }}
-                className="border rounded p-2"
+                className="border rounded p-3 text-base"
                 disabled={!isGM}
               >
                 <option value="count">n回一致クリア</option>
@@ -106,7 +106,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
                       },
                     }) : null)
                   }
-                  className="border rounded p-2 w-16"
+                  className="border rounded p-3 w-20 text-base"
                   disabled={!isGM}
                 />
               )}
@@ -118,7 +118,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
           <button
             onClick={handleSaveSettings}
             disabled={saving}
-            className={`rounded px-4 py-2 text-white ${
+            className={`rounded px-4 py-3 text-lg text-white ${
               saving ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
             }`}
           >

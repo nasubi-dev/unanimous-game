@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { ApiError, createRoom, joinRoom, gmTokenStore, userIdStore } from "../lib/api";
+import {
+  ApiError,
+  createRoom,
+  joinRoom,
+  gmTokenStore,
+  userIdStore,
+} from "../lib/api";
+import { getIconForName } from "../lib/icons";
 
 function getOrCreatePlayerName(): string {
   let name = localStorage.getItem("playerName") || "";
@@ -9,6 +16,27 @@ function getOrCreatePlayerName(): string {
     localStorage.setItem("playerName", name);
   }
   return name;
+}
+
+function getOrCreatePlayerIcon(): string | number {
+  const saved = localStorage.getItem("playerIcon");
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      // パースに失敗した場合は名前に基づいてアイコンを設定
+      const playerName = getOrCreatePlayerName();
+      const newIcon = getIconForName(playerName);
+      localStorage.setItem("playerIcon", JSON.stringify(newIcon));
+      return newIcon;
+    }
+  } else {
+    // 初回は名前に基づいてアイコンを設定
+    const playerName = getOrCreatePlayerName();
+    const newIcon = getIconForName(playerName);
+    localStorage.setItem("playerIcon", JSON.stringify(newIcon));
+    return newIcon;
+  }
 }
 
 export default function RoomGateway() {
@@ -31,12 +59,13 @@ export default function RoomGateway() {
 
   async function onCreate() {
     const name = getOrCreatePlayerName();
+    const icon = getOrCreatePlayerIcon();
     setLoading("create");
     try {
-  const res = await createRoom({ name });
-  gmTokenStore.save(res.roomId, res.gmToken);
-  if (res.gmUserId) userIdStore.save(res.roomId, res.gmUserId);
-  nav(`/room/${res.roomId}`);
+      const res = await createRoom({ name, icon });
+      gmTokenStore.save(res.roomId, res.gmToken);
+      if (res.gmUserId) userIdStore.save(res.roomId, res.gmUserId);
+      nav(`/room/${res.roomId}`);
     } catch (e) {
       const err = e as ApiError;
       if (err.status === 400) setToast(err.body || "作成に失敗しました (400)");
@@ -51,10 +80,11 @@ export default function RoomGateway() {
   async function onJoin() {
     if (!roomIdOk) return;
     const name = getOrCreatePlayerName();
+    const icon = getOrCreatePlayerIcon();
     setLoading("join");
     try {
-  const jr = await joinRoom(roomId, { name });
-  if (jr?.userId) userIdStore.save(roomId, jr.userId);
+      const jr = await joinRoom(roomId, { name, icon });
+      if (jr?.userId) userIdStore.save(roomId, jr.userId);
       nav(`/room/${roomId}`);
     } catch (e) {
       const err = e as ApiError;
@@ -70,12 +100,12 @@ export default function RoomGateway() {
       <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
         <div className="max-w-[420px] w-full space-y-6 px-4 relative">
           {toast && (
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-red-600 text-white text-sm px-3 py-2 rounded shadow">
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-red-600 text-white text-base px-3 py-2 rounded shadow">
               {toast}
             </div>
           )}
           <nav className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-5">
-            <p className="text-center text-gray-700 dark:text-gray-200">
+            <p className="text-center text-lg text-gray-700 dark:text-gray-200">
               ようこそ、{playerName}
             </p>
             {!showJoin ? (
@@ -83,7 +113,7 @@ export default function RoomGateway() {
                 <button
                   onClick={onCreate}
                   disabled={loading === "create"}
-                  className={`w-full rounded py-2 text-white ${
+                  className={`w-full rounded py-3 text-lg text-white ${
                     loading === "create"
                       ? "bg-gray-400 cursor-not-allowed"
                       : "bg-blue-600 hover:bg-blue-700"
@@ -94,7 +124,7 @@ export default function RoomGateway() {
                 <button
                   type="button"
                   onClick={() => setShowJoin(true)}
-                  className="w-full rounded py-2 text-white bg-gray-800 hover:bg-black"
+                  className="w-full rounded py-3 text-lg text-white bg-gray-800 hover:bg-black"
                 >
                   参加する
                 </button>
@@ -104,7 +134,7 @@ export default function RoomGateway() {
                 <button
                   type="button"
                   onClick={() => setShowJoin(false)}
-                  className="w-full rounded py-2 text-gray-800 bg-gray-100 hover:bg-gray-200 dark:text-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
+                  className="w-full rounded py-3 text-lg text-gray-800 bg-gray-100 hover:bg-gray-200 dark:text-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
                 >
                   戻る
                 </button>
@@ -119,12 +149,12 @@ export default function RoomGateway() {
                       setRoomId(v);
                     }}
                     placeholder="4桁の番号"
-                    className="w-full border rounded p-2"
+                    className="w-full border rounded p-3 text-base"
                   />
                   <button
                     onClick={onJoin}
                     disabled={!roomIdOk || loading === "join"}
-                    className={`w-full rounded py-2 text-white ${
+                    className={`w-full rounded py-3 text-lg text-white ${
                       roomIdOk && loading !== "join"
                         ? "bg-emerald-600 hover:bg-emerald-700"
                         : "bg-gray-400 cursor-not-allowed"

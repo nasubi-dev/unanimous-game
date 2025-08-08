@@ -249,7 +249,7 @@ export default function Room() {
         <div className="mt-6">
           <button
             onClick={handleStartGame}
-            className="bg-green-600 hover:bg-green-700 text-white rounded px-6 py-3 font-medium"
+            className="bg-green-600 hover:bg-green-700 text-white text-lg rounded px-6 py-4 font-medium"
           >
             ゲーム開始
           </button>
@@ -259,7 +259,7 @@ export default function Room() {
       {/* ゲーム進行画面 */}
       {state.status === "playing" && (
         <div className="mt-6 space-y-6">
-          <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+          <div className="text-base text-gray-600 dark:text-gray-400 mb-2">
             デバッグ: status={state.status}, rounds={state.rounds.length}, currentRound={currentRound?.id || 'none'}
           </div>
 

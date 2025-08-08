@@ -37,19 +37,21 @@ export class RoomDurable {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     // HTTP: /create, /join, /state
-  if (request.method === "POST" && url.pathname.endsWith("/create")) {
+    if (request.method === "POST" && url.pathname.endsWith("/create")) {
       const body = (await request.json().catch(() => ({}))) as {
         roomId?: string;
         name?: string;
+        icon?: string | number;
       };
       const providedId = (body.roomId ?? "").toString().trim();
       const gmName = (body.name ?? "").toString().trim();
+      const gmIcon = body.icon ?? 1;
       const { roomId, gmId, gmToken } = this.initRoom(providedId);
-  this.gmToken = gmToken;
+      this.gmToken = gmToken;
       // GM をユーザーとして登録
       let gmUserId = "";
       if (gmName) {
-        const gmUser = this.addUser(gmName, true);
+        const gmUser = this.addUser(gmName, gmIcon, true);
         gmUserId = gmUser.id;
       }
       return Response.json({ roomId, gmId, gmToken, gmUserId });
@@ -58,12 +60,14 @@ export class RoomDurable {
     if (request.method === "POST" && url.pathname.endsWith("/join")) {
       const body = (await request.json().catch(() => ({}))) as {
         name?: string;
+        icon?: string | number;
       };
       const name = (body.name ?? "").toString().trim();
+      const icon = body.icon ?? 1;
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
       if (!name) return new Response("name required", { status: 400 });
-      const user = this.addUser(name);
+      const user = this.addUser(name, icon);
       this.broadcast({ type: "userJoined", user } satisfies ServerMessage);
       return Response.json({ userId: user.id });
     }
@@ -78,34 +82,47 @@ export class RoomDurable {
       (request.method === "PATCH" || request.method === "POST") &&
       url.pathname.endsWith("/settings")
     ) {
-      if (!this.room) return new Response("Room not initialized", { status: 404 });
-      const body = (await request.json().catch(() => ({}))) as UpdateSettingsRequest;
+      if (!this.room)
+        return new Response("Room not initialized", { status: 404 });
+      const body = (await request
+        .json()
+        .catch(() => ({}))) as UpdateSettingsRequest;
       if (!body?.gmToken || body.gmToken !== this.gmToken)
         return new Response("forbidden", { status: 403 });
-      const next = this.applySettingsPatch(this.room.settings, body.settings || {});
+      const next = this.applySettingsPatch(
+        this.room.settings,
+        body.settings || {}
+      );
       this.room.settings = next;
       // settingsUpdatedイベントと全状態の両方を送信
-      this.broadcast({ type: "settingsUpdated", settings: next } satisfies ServerMessage);
-      this.broadcast({ type: "state", room: this.room } satisfies ServerMessage);
+      this.broadcast({
+        type: "settingsUpdated",
+        settings: next,
+      } satisfies ServerMessage);
+      this.broadcast({
+        type: "state",
+        room: this.room,
+      } satisfies ServerMessage);
       return Response.json({ ok: true });
     }
 
     // ゲーム開始
     if (request.method === "POST" && url.pathname.endsWith("/start")) {
-      if (!this.room) return new Response("Room not initialized", { status: 404 });
-      if (this.room.status !== "waiting") 
+      if (!this.room)
+        return new Response("Room not initialized", { status: 404 });
+      if (this.room.status !== "waiting")
         return new Response("Game already started", { status: 409 });
-      
+
       const body = (await request.json().catch(() => ({}))) as StartGameRequest;
       if (!body?.gmToken || body.gmToken !== this.gmToken)
         return new Response("forbidden", { status: 403 });
-      
+
       this.room.status = "playing";
-      
+
       // 自動で最初のラウンドを作成
       const roundId = crypto.randomUUID();
       const setterId = this.getNextTopicSetter();
-      
+
       const newRound: Round = {
         id: roundId,
         topic: "",
@@ -114,28 +131,37 @@ export class RoomDurable {
         result: "unopened",
         unanimous: null,
       };
-      
+
       this.room.rounds.push(newRound);
-      
-      this.broadcast({ type: "gameStarted", room: this.room } satisfies ServerMessage);
-      this.broadcast({ type: "roundCreated", round: newRound } satisfies ServerMessage);
-      
+
+      this.broadcast({
+        type: "gameStarted",
+        room: this.room,
+      } satisfies ServerMessage);
+      this.broadcast({
+        type: "roundCreated",
+        round: newRound,
+      } satisfies ServerMessage);
+
       return Response.json({ ok: true, roundId });
     }
 
     // ラウンド作成
     if (request.method === "POST" && url.pathname.endsWith("/round")) {
-      if (!this.room) return new Response("Room not initialized", { status: 404 });
-      if (this.room.status !== "playing") 
+      if (!this.room)
+        return new Response("Room not initialized", { status: 404 });
+      if (this.room.status !== "playing")
         return new Response("Game not started", { status: 409 });
-      
-      const body = (await request.json().catch(() => ({}))) as CreateRoundRequest;
+
+      const body = (await request
+        .json()
+        .catch(() => ({}))) as CreateRoundRequest;
       if (!body?.gmToken || body.gmToken !== this.gmToken)
         return new Response("forbidden", { status: 403 });
-      
+
       const roundId = crypto.randomUUID();
       const setterId = this.getNextTopicSetter();
-      
+
       const newRound: Round = {
         id: roundId,
         topic: "",
@@ -144,136 +170,164 @@ export class RoomDurable {
         result: "unopened",
         unanimous: null,
       };
-      
+
       this.room.rounds.push(newRound);
-      this.broadcast({ type: "roundCreated", round: newRound } satisfies ServerMessage);
+      this.broadcast({
+        type: "roundCreated",
+        round: newRound,
+      } satisfies ServerMessage);
       return Response.json({ roundId });
     }
 
     // お題設定
-    if (request.method === "POST" && url.pathname.includes("/round/") && url.pathname.endsWith("/topic")) {
-      if (!this.room) return new Response("Room not initialized", { status: 404 });
-      
+    if (
+      request.method === "POST" &&
+      url.pathname.includes("/round/") &&
+      url.pathname.endsWith("/topic")
+    ) {
+      if (!this.room)
+        return new Response("Room not initialized", { status: 404 });
+
       const pathParts = url.pathname.split("/");
       const roundId = pathParts[pathParts.length - 2];
-      const round = this.room.rounds.find(r => r.id === roundId);
+      const round = this.room.rounds.find((r) => r.id === roundId);
       if (!round) return new Response("Round not found", { status: 404 });
-      
+
       const body = (await request.json().catch(() => ({}))) as SetTopicRequest;
-      if (!body?.setterId || !body?.topic?.trim()) 
+      if (!body?.setterId || !body?.topic?.trim())
         return new Response("setterId and topic required", { status: 400 });
-      
+
       // 設定権限チェック
-      if (round.setterId !== body.setterId) 
+      if (round.setterId !== body.setterId)
         return new Response("Not authorized to set topic", { status: 403 });
-      
+
       round.topic = body.topic.trim();
-      this.broadcast({ 
-        type: "topicSet", 
-        roundId, 
-        topic: round.topic 
+      this.broadcast({
+        type: "topicSet",
+        roundId,
+        topic: round.topic,
       } satisfies ServerMessage);
       return Response.json({ ok: true });
     }
 
     // 回答送信
-    if (request.method === "POST" && url.pathname.includes("/round/") && url.pathname.endsWith("/answer")) {
-      if (!this.room) return new Response("Room not initialized", { status: 404 });
-      
+    if (
+      request.method === "POST" &&
+      url.pathname.includes("/round/") &&
+      url.pathname.endsWith("/answer")
+    ) {
+      if (!this.room)
+        return new Response("Room not initialized", { status: 404 });
+
       const pathParts = url.pathname.split("/");
       const roundId = pathParts[pathParts.length - 2];
-      const round = this.room.rounds.find(r => r.id === roundId);
+      const round = this.room.rounds.find((r) => r.id === roundId);
       if (!round) return new Response("Round not found", { status: 404 });
-      if (round.result === "opened") return new Response("Round already opened", { status: 409 });
-      
-      const body = (await request.json().catch(() => ({}))) as SubmitAnswerRequest;
-      if (!body?.userId || !body?.value?.trim()) 
+      if (round.result === "opened")
+        return new Response("Round already opened", { status: 409 });
+
+      const body = (await request
+        .json()
+        .catch(() => ({}))) as SubmitAnswerRequest;
+      if (!body?.userId || !body?.value?.trim())
         return new Response("userId and value required", { status: 400 });
-      
+
       // 既存の回答を削除して新しい回答を追加
-      round.answers = round.answers.filter(a => a.userId !== body.userId);
+      round.answers = round.answers.filter((a) => a.userId !== body.userId);
       round.answers.push({
         userId: body.userId,
         value: body.value.trim(),
         submittedAt: Date.now(),
       });
-      
+
       // より詳細な情報をbroadcast - 現在の回答状況を含める
-      this.broadcast({ 
-        type: "answerSubmitted", 
-        roundId, 
-        userId: body.userId, 
+      this.broadcast({
+        type: "answerSubmitted",
+        roundId,
+        userId: body.userId,
         hasAnswered: true,
-        answeredUserIds: round.answers.map(a => a.userId),
+        answeredUserIds: round.answers.map((a) => a.userId),
         totalAnswers: round.answers.length,
-        totalUsers: this.room.users.length
+        totalUsers: this.room.users.length,
       } satisfies ServerMessage);
       return Response.json({ ok: true });
     }
 
     // 回答オープン
-    if (request.method === "POST" && url.pathname.includes("/round/") && url.pathname.endsWith("/open")) {
-      if (!this.room) return new Response("Room not initialized", { status: 404 });
-      
+    if (
+      request.method === "POST" &&
+      url.pathname.includes("/round/") &&
+      url.pathname.endsWith("/open")
+    ) {
+      if (!this.room)
+        return new Response("Room not initialized", { status: 404 });
+
       const pathParts = url.pathname.split("/");
       const roundId = pathParts[pathParts.length - 2];
-      const round = this.room.rounds.find(r => r.id === roundId);
+      const round = this.room.rounds.find((r) => r.id === roundId);
       if (!round) return new Response("Round not found", { status: 404 });
-      
+
       const body = (await request.json().catch(() => ({}))) as OpenRoundRequest;
       if (!body?.gmToken || body.gmToken !== this.gmToken)
         return new Response("forbidden", { status: 403 });
-      
+
       round.result = "opened";
-      this.broadcast({ 
-        type: "roundOpened", 
-        roundId, 
-        answers: round.answers 
+      this.broadcast({
+        type: "roundOpened",
+        roundId,
+        answers: round.answers,
       } satisfies ServerMessage);
       return Response.json({ ok: true });
     }
 
     // 結果判定
-    if (request.method === "POST" && url.pathname.includes("/round/") && url.pathname.endsWith("/result")) {
-      if (!this.room) return new Response("Room not initialized", { status: 404 });
-      
+    if (
+      request.method === "POST" &&
+      url.pathname.includes("/round/") &&
+      url.pathname.endsWith("/result")
+    ) {
+      if (!this.room)
+        return new Response("Room not initialized", { status: 404 });
+
       const pathParts = url.pathname.split("/");
       const roundId = pathParts[pathParts.length - 2];
-      const round = this.room.rounds.find(r => r.id === roundId);
+      const round = this.room.rounds.find((r) => r.id === roundId);
       if (!round) return new Response("Round not found", { status: 404 });
-      
-      const body = (await request.json().catch(() => ({}))) as JudgeResultRequest;
+
+      const body = (await request
+        .json()
+        .catch(() => ({}))) as JudgeResultRequest;
       if (!body?.gmToken || body.gmToken !== this.gmToken)
         return new Response("forbidden", { status: 403 });
-      if (typeof body.unanimous !== "boolean") 
+      if (typeof body.unanimous !== "boolean")
         return new Response("unanimous must be boolean", { status: 400 });
-      
+
       round.unanimous = body.unanimous;
-      
+
       // 勝利条件をチェック
       const winResult = this.checkWinCondition();
-      
-      this.broadcast({ 
-        type: "resultJudged", 
-        roundId, 
-        unanimous: body.unanimous 
+
+      this.broadcast({
+        type: "resultJudged",
+        roundId,
+        unanimous: body.unanimous,
       } satisfies ServerMessage);
-      
+
       // 勝利条件を満たした場合はゲーム終了
       if (winResult.isWin) {
         this.room.status = "finished";
         this.broadcast({
           type: "gameFinished",
           room: this.room,
-          winCondition: true
+          winCondition: true,
         } satisfies ServerMessage);
         console.log("Game finished:", winResult.reason);
       }
-      
-      return Response.json({ 
-        ok: true, 
+
+      return Response.json({
+        ok: true,
         gameFinished: winResult.isWin,
-        reason: winResult.reason 
+        reason: winResult.reason,
       });
     }
 
@@ -282,11 +336,17 @@ export class RoomDurable {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
       server.accept();
-      console.log(`New WebSocket connection. Total connections: ${this.sockets.size + 1}`);
-      
+      console.log(
+        `New WebSocket connection. Total connections: ${this.sockets.size + 1}`
+      );
+
       this.sockets.add(server);
       server.addEventListener("close", () => {
-        console.log(`WebSocket connection closed. Total connections: ${this.sockets.size - 1}`);
+        console.log(
+          `WebSocket connection closed. Total connections: ${
+            this.sockets.size - 1
+          }`
+        );
         this.sockets.delete(server);
       });
       server.addEventListener("message", (ev) => this.onMessage(server, ev));
@@ -294,7 +354,7 @@ export class RoomDurable {
         console.log("WebSocket error:", error);
         this.sockets.delete(server);
       });
-      
+
       // 接続直後に現状態を送信
       if (this.room) {
         const stateMessage = JSON.stringify({
@@ -335,7 +395,7 @@ export class RoomDurable {
     // roomId が指定されていればそれを採用、なければ 4桁番号を生成
     roomId ||= (Math.floor(Math.random() * 9000) + 1000).toString();
     const gmId = crypto.randomUUID();
-  const gmToken = crypto.randomUUID();
+    const gmToken = crypto.randomUUID();
     this.room = {
       id: roomId,
       gmId,
@@ -347,8 +407,8 @@ export class RoomDurable {
     return { roomId, gmId, gmToken };
   }
 
-  private addUser(name: string, isGM = false) {
-    const user = { id: crypto.randomUUID(), name, icon: "", isGM };
+  private addUser(name: string, icon: string | number = 1, isGM = false) {
+    const user = { id: crypto.randomUUID(), name, icon, isGM };
     this.room!.users.push(user);
     return user;
   }
@@ -367,7 +427,7 @@ export class RoomDurable {
       }
       if (msg.type === "join") {
         if (!this.room) return;
-        const user = this.addUser(msg.name);
+        const user = this.addUser(msg.name, msg.icon);
         this.broadcast({ type: "userJoined", user } satisfies ServerMessage);
       }
     } catch (e) {
@@ -380,18 +440,30 @@ export class RoomDurable {
     }
   }
 
-  private applySettingsPatch(current: RoomSettings, patch: Partial<RoomSettings>): RoomSettings {
+  private applySettingsPatch(
+    current: RoomSettings,
+    patch: Partial<RoomSettings>
+  ): RoomSettings {
     const out: RoomSettings = structuredClone(current);
     if (patch.topicMode) {
-      if (patch.topicMode === "gm" || patch.topicMode === "all") out.topicMode = patch.topicMode;
+      if (patch.topicMode === "gm" || patch.topicMode === "all")
+        out.topicMode = patch.topicMode;
     }
     if (patch.winCondition) {
       const wc = patch.winCondition as RoomSettings["winCondition"];
       if (wc.type === "none") {
         out.winCondition = { type: "none" };
-      } else if (wc.type === "count" && typeof (wc as any).value === "number" && (wc as any).value >= 1) {
+      } else if (
+        wc.type === "count" &&
+        typeof (wc as any).value === "number" &&
+        (wc as any).value >= 1
+      ) {
         out.winCondition = { type: "count", value: (wc as any).value };
-      } else if (wc.type === "consecutive" && typeof (wc as any).value === "number" && (wc as any).value >= 1) {
+      } else if (
+        wc.type === "consecutive" &&
+        typeof (wc as any).value === "number" &&
+        (wc as any).value >= 1
+      ) {
         out.winCondition = { type: "consecutive", value: (wc as any).value };
       }
     }
@@ -400,26 +472,28 @@ export class RoomDurable {
 
   private getNextTopicSetter(): string {
     if (!this.room) return "";
-    
+
     // GM固定モードの場合
     if (this.room.settings.topicMode === "gm") {
-      const gm = this.room.users.find(u => u.isGM);
+      const gm = this.room.users.find((u) => u.isGM);
       return gm?.id || "";
     }
-    
+
     // 全員順番モードの場合
     if (this.room.settings.topicMode === "all") {
       // 全てのユーザー（GMを含む）を対象とする
       const allUsers = this.room.users;
       if (allUsers.length === 0) return "";
-      
+
       // 既存のラウンド数を基準にして次の人を選択
       const roundCount = this.room.rounds.length;
       const nextUserIndex = roundCount % allUsers.length;
-      console.log(`Setting topic setter (all users): round=${roundCount}, userIndex=${nextUserIndex}, userId=${allUsers[nextUserIndex]?.id}, userName=${allUsers[nextUserIndex]?.name}, isGM=${allUsers[nextUserIndex]?.isGM}`);
+      console.log(
+        `Setting topic setter (all users): round=${roundCount}, userIndex=${nextUserIndex}, userId=${allUsers[nextUserIndex]?.id}, userName=${allUsers[nextUserIndex]?.name}, isGM=${allUsers[nextUserIndex]?.isGM}`
+      );
       return allUsers[nextUserIndex]?.id || "";
     }
-    
+
     return "";
   }
 
@@ -427,27 +501,31 @@ export class RoomDurable {
     if (!this.room) return { isWin: false };
 
     const { winCondition } = this.room.settings;
-    
+
     if (winCondition.type === "none") {
       return { isWin: false };
     }
 
     // 全員一致したラウンドのみを対象とする
-    const unanimousRounds = this.room.rounds.filter(r => r.unanimous === true);
-    
+    const unanimousRounds = this.room.rounds.filter(
+      (r) => r.unanimous === true
+    );
+
     if (winCondition.type === "count") {
       const isWin = unanimousRounds.length >= winCondition.value;
-      return { 
-        isWin, 
-        reason: isWin ? `${winCondition.value}回一致を達成しました！` : undefined 
+      return {
+        isWin,
+        reason: isWin
+          ? `${winCondition.value}回一致を達成しました！`
+          : undefined,
       };
     }
-    
+
     if (winCondition.type === "consecutive") {
       // 連続一致の判定
       let consecutiveCount = 0;
       let maxConsecutive = 0;
-      
+
       // 最新のラウンドから逆順で連続一致をチェック
       for (let i = this.room.rounds.length - 1; i >= 0; i--) {
         const round = this.room.rounds[i];
@@ -459,14 +537,16 @@ export class RoomDurable {
         }
         // unanimous === null の場合は判定前なのでスキップ
       }
-      
+
       const isWin = maxConsecutive >= winCondition.value;
-      return { 
-        isWin, 
-        reason: isWin ? `${winCondition.value}回連続一致を達成しました！` : undefined 
+      return {
+        isWin,
+        reason: isWin
+          ? `${winCondition.value}回連続一致を達成しました！`
+          : undefined,
       };
     }
-    
+
     return { isWin: false };
   }
 }

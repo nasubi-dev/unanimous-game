@@ -1,6 +1,13 @@
 import type { Route } from "./+types/home";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import {
+  getRandomIcon,
+  getRandomIconExcept,
+  getIconPath,
+  getIconForName,
+  getSpecialIconFromName,
+} from "../lib/icons";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -11,36 +18,137 @@ export function meta({}: Route.MetaArgs) {
 
 export default function Home() {
   const [name, setName] = useState("");
+  const [icon, setIcon] = useState<string | number>(1);
+  const [isSpecialName, setIsSpecialName] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
     const saved = localStorage.getItem("playerName") || "";
+    const savedIcon = localStorage.getItem("playerIcon");
     setName(saved);
+
+    // 名前が特殊かどうかをチェック
+    const specialIcon = getSpecialIconFromName(saved);
+    setIsSpecialName(!!specialIcon);
+
+    if (savedIcon) {
+      try {
+        const parsedIcon = JSON.parse(savedIcon);
+        setIcon(parsedIcon);
+      } catch {
+        // パースに失敗した場合は名前に応じたアイコンを設定
+        const newIcon = getIconForName(saved);
+        setIcon(newIcon);
+      }
+    } else {
+      // 初回は名前に応じたアイコンを設定
+      const newIcon = getIconForName(saved);
+      setIcon(newIcon);
+    }
   }, []);
 
+  function handleNameChange(newName: string) {
+    setName(newName);
+
+    // 名前が特殊名前に該当するかチェック
+    const specialIcon = getSpecialIconFromName(newName);
+    if (specialIcon) {
+      setIcon(specialIcon);
+      setIsSpecialName(true);
+      localStorage.setItem("playerIcon", JSON.stringify(specialIcon));
+    } else {
+      // 特殊名前でなくなった場合は、以前が特殊名前だったらランダムアイコンに変更
+      if (isSpecialName) {
+        const randomIcon = getRandomIcon();
+        setIcon(randomIcon);
+        localStorage.setItem("playerIcon", JSON.stringify(randomIcon));
+      }
+      setIsSpecialName(false);
+    }
+  }
+
+  useEffect(() => {
+    const saved = localStorage.getItem("playerName") || "";
+    const savedIcon = localStorage.getItem("playerIcon");
+    setName(saved);
+
+    if (savedIcon) {
+      try {
+        const parsedIcon = JSON.parse(savedIcon);
+        setIcon(parsedIcon);
+      } catch {
+        // パースに失敗した場合はランダムアイコンを設定
+        const randomIcon = getRandomIcon();
+        setIcon(randomIcon);
+      }
+    } else {
+      // 初回はランダムアイコンを設定
+      const randomIcon = getRandomIcon();
+      setIcon(randomIcon);
+    }
+  }, []);
+
+  function onRandomizeIcon() {
+    // 特殊名前の場合はランダム変更を無効化
+    if (isSpecialName) return;
+
+    const newIcon = getRandomIconExcept(icon);
+    setIcon(newIcon);
+    localStorage.setItem("playerIcon", JSON.stringify(newIcon));
+  }
+
   function onNext() {
-    const n = name && name.trim() ? name.trim() : `guest${Math.floor(1000 + Math.random() * 9000)}`;
+    const n =
+      name && name.trim()
+        ? name.trim()
+        : `guest${Math.floor(1000 + Math.random() * 9000)}`;
     localStorage.setItem("playerName", n);
+    localStorage.setItem("playerIcon", JSON.stringify(icon));
     nav("/room");
   }
   return (
     <main className="flex items-center justify-center pt-16 pb-4">
       <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
-        <div className="max-w-[360px] w-full space-y-6 px-4">
+        <div className="w-full space-y-6 px-4">
           <nav className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
-            <p className="leading-6 text-gray-700 dark:text-gray-200 text-center">
-              名前を入力してください
+            <p className="leading-7 text-lg text-gray-700 dark:text-gray-200 text-center">
+              プレイヤー情報の登録
             </p>
+
+            {/* アイコン選択エリア */}
+            <div className="flex flex-col items-center space-y-3">
+              <div className="relative">
+                <img
+                  src={getIconPath(icon)}
+                  alt="Player Icon"
+                  className="w-20 h-20 rounded-full border-2 border-gray-300"
+                />
+                {!isSpecialName && (
+                  <button
+                    onClick={onRandomizeIcon}
+                    className="absolute -top-1 -right-1 w-6 h-6 bg-blue-500 hover:bg-blue-600 rounded-full text-white text-xs flex items-center justify-center font-bold"
+                    title="アイコンをランダムに変更"
+                  >
+                    🎲
+                  </button>
+                )}
+                {isSpecialName && <div></div>}
+              </div>
+              <p className="text-base text-gray-500 dark:text-gray-400">
+                右上のボタンでアイコンを変更できます
+              </p>
+            </div>
+
             <div className="space-y-3">
               <input
                 value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your Name (optional)"
-                className="w-full border rounded p-2"
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="名前を入力"
+                className="w-full border rounded p-3 text-base"
               />
               <button
                 onClick={onNext}
-                className="w-full rounded py-2 text-white bg-blue-600 hover:bg-blue-700"
+                className="w-full rounded py-3 text-lg text-white bg-blue-600 hover:bg-blue-700"
               >
                 次へ
               </button>
@@ -49,5 +157,5 @@ export default function Home() {
         </div>
       </div>
     </main>
-    )
+  );
 }
