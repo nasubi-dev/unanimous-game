@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "dev:client": "npm --prefix src/client run dev",
-    "build:client": "npm --prefix src/client run build",
+  "build:client": "npm --prefix src/client ci && npm --prefix src/client run build",
     "deploy": "wrangler deploy"
   },
   "dependencies": {
