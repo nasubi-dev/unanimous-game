@@ -47,6 +47,7 @@ export type ServerMessage =
   | { type: "answerSubmitted"; roundId: string; userId: string; hasAnswered: boolean; answeredUserIds: string[]; totalAnswers: number; totalUsers: number }
   | { type: "roundOpened"; roundId: string; answers: Answer[] }
   | { type: "resultJudged"; roundId: string; unanimous: boolean }
+  | { type: "gameFinished"; room: Room; winCondition: boolean }
   | { type: "settingsUpdated"; settings: RoomSettings }
   | { type: "error"; message: string };
 

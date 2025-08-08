@@ -231,12 +231,32 @@ export class RoomDurable {
         return new Response("unanimous must be boolean", { status: 400 });
       
       round.unanimous = body.unanimous;
+      
+      // 勝利条件をチェック
+      const winResult = this.checkWinCondition();
+      
       this.broadcast({ 
         type: "resultJudged", 
         roundId, 
         unanimous: body.unanimous 
       } satisfies ServerMessage);
-      return Response.json({ ok: true });
+      
+      // 勝利条件を満たした場合はゲーム終了
+      if (winResult.isWin) {
+        this.room.status = "finished";
+        this.broadcast({
+          type: "gameFinished",
+          room: this.room,
+          winCondition: true
+        } satisfies ServerMessage);
+        console.log("Game finished:", winResult.reason);
+      }
+      
+      return Response.json({ 
+        ok: true, 
+        gameFinished: winResult.isWin,
+        reason: winResult.reason 
+      });
     }
 
     // 必要に応じて /start /answer /open などを実装
@@ -374,10 +394,60 @@ export class RoomDurable {
       const users = this.room.users.filter(u => !u.isGM);
       if (users.length === 0) return "";
       
+      // 既存のラウンド数を基準にして次の人を選択
       const roundCount = this.room.rounds.length;
-      return users[roundCount % users.length]?.id || "";
+      const nextUserIndex = roundCount % users.length;
+      console.log(`Setting topic setter: round=${roundCount}, userIndex=${nextUserIndex}, userId=${users[nextUserIndex]?.id}`);
+      return users[nextUserIndex]?.id || "";
     }
     
     return "";
+  }
+
+  private checkWinCondition(): { isWin: boolean; reason?: string } {
+    if (!this.room) return { isWin: false };
+
+    const { winCondition } = this.room.settings;
+    
+    if (winCondition.type === "none") {
+      return { isWin: false };
+    }
+
+    // 全員一致したラウンドのみを対象とする
+    const unanimousRounds = this.room.rounds.filter(r => r.unanimous === true);
+    
+    if (winCondition.type === "count") {
+      const isWin = unanimousRounds.length >= winCondition.value;
+      return { 
+        isWin, 
+        reason: isWin ? `${winCondition.value}回一致を達成しました！` : undefined 
+      };
+    }
+    
+    if (winCondition.type === "consecutive") {
+      // 連続一致の判定
+      let consecutiveCount = 0;
+      let maxConsecutive = 0;
+      
+      // 最新のラウンドから逆順で連続一致をチェック
+      for (let i = this.room.rounds.length - 1; i >= 0; i--) {
+        const round = this.room.rounds[i];
+        if (round.unanimous === true) {
+          consecutiveCount++;
+          maxConsecutive = Math.max(maxConsecutive, consecutiveCount);
+        } else if (round.unanimous === false) {
+          break; // 連続記録が途切れる
+        }
+        // unanimous === null の場合は判定前なのでスキップ
+      }
+      
+      const isWin = maxConsecutive >= winCondition.value;
+      return { 
+        isWin, 
+        reason: isWin ? `${winCondition.value}回連続一致を達成しました！` : undefined 
+      };
+    }
+    
+    return { isWin: false };
   }
 }

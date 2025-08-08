@@ -148,6 +148,11 @@ export default function Room() {
             };
           });
         }
+        if (msg.type === "gameFinished") {
+          console.log("Game finished:", msg.winCondition);
+          setState(msg.room);
+          setToast("🎉 ゲーム終了！勝利条件を達成しました！");
+        }
         if (msg.type === "settingsUpdated") {
           console.log("Settings updated:", msg.settings);
           setState((prev) => prev ? ({ ...prev, settings: msg.settings }) : null);
@@ -220,7 +225,9 @@ export default function Room() {
       answersCount: currentRound.answers.length
     } : null,
     isGM,
-    selfId
+    selfId,
+    gmToken: gmTokenStore.load(id),
+    canCreateRound: !currentRound && isGM && state?.status === "playing"
   });
 
   // ゲーム関連のハンドラー
@@ -622,20 +629,25 @@ export default function Room() {
             </div>
           ) : (
             /* ラウンドがない場合の新しいラウンド作成 */
-            isGM && (
-              <div className="text-center">
-                <button
-                  onClick={handleCreateRound}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded font-medium"
-                >
-                  最初のラウンドを始める
-                </button>
+            <>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                デバッグ: currentRound=null, isGM={isGM ? 'true' : 'false'}, gmToken={gmTokenStore.load(id) ? 'exists' : 'none'}
               </div>
-            )
+              {isGM && (
+                <div className="text-center">
+                  <button
+                    onClick={handleCreateRound}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded font-medium"
+                  >
+                    最初のラウンドを始める
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
-          {/* 次のラウンドボタン */}
-          {currentRound && currentRound.result === "opened" && currentRound.unanimous !== null && isGM && (
+          {/* 次のラウンドボタン（ゲーム終了していない場合のみ） */}
+          {(state.status as any) !== "finished" && currentRound && currentRound.result === "opened" && currentRound.unanimous !== null && isGM && (
             <div className="text-center">
               <button
                 onClick={handleCreateRound}
@@ -643,6 +655,22 @@ export default function Room() {
               >
                 次のラウンドを始める
               </button>
+            </div>
+          )}
+
+          {/* ゲーム終了メッセージ */}
+          {(state.status as any) === "finished" && (
+            <div className="text-center bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6 mt-4">
+              <h3 className="text-xl font-bold text-green-700 dark:text-green-300 mb-2">
+                🎉 ゲーム終了！
+              </h3>
+              <p className="text-green-600 dark:text-green-400 mb-4">
+                勝利条件を達成しました！お疲れ様でした。
+              </p>
+              <div className="text-sm text-green-600 dark:text-green-400">
+                <p>全 {state.rounds.length} ラウンド実施</p>
+                <p>全員一致回数: {state.rounds.filter(r => r.unanimous === true).length} 回</p>
+              </div>
             </div>
           )}
         </div>
