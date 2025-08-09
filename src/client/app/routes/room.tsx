@@ -256,7 +256,7 @@ export default function Room() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       const userId = selfId || userIdStore.load(id);
-      if (userId && state && !state.users.find(u => u.id === userId)?.isGM) {
+      if (userId && state && !state.users.find((u) => u.id === userId)?.isGM) {
         // GMではない場合のみ退出処理を実行
         leaveRoom(id, userId);
       }
@@ -264,22 +264,26 @@ export default function Room() {
 
     const handleVisibilityChange = () => {
       // ページが非表示になった時の処理
-      if (document.visibilityState === 'hidden') {
+      if (document.visibilityState === "hidden") {
         const userId = selfId || userIdStore.load(id);
-        if (userId && state && !state.users.find(u => u.id === userId)?.isGM) {
+        if (
+          userId &&
+          state &&
+          !state.users.find((u) => u.id === userId)?.isGM
+        ) {
           leaveRoom(id, userId);
         }
       }
     };
 
     // イベントリスナーを追加
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // クリーンアップ
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [id, selfId, state]);
 

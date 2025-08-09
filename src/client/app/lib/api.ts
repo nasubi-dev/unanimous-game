@@ -257,10 +257,12 @@ export async function resetRoom(
 export function leaveRoom(roomId: string, userId: string): void {
   const ws = connectWs(roomId);
   ws.onopen = () => {
-    ws.send(JSON.stringify({ 
-      type: "leave", 
-      userId 
-    }));
+    ws.send(
+      JSON.stringify({
+        type: "leave",
+        userId,
+      })
+    );
     ws.close();
   };
 }

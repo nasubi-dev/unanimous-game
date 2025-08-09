@@ -349,7 +349,7 @@ export class RoomDurable {
       // GM権限チェック
       const authHeader = request.headers.get("authorization") || "";
       const xGmToken = request.headers.get("x-gm-token") || "";
-      
+
       let providedToken = "";
       if (authHeader.startsWith("Bearer ")) {
         providedToken = authHeader.substring(7);
@@ -360,17 +360,17 @@ export class RoomDurable {
       if (!providedToken || providedToken !== this.gmToken) {
         console.log("Reset failed: invalid GM token", {
           provided: providedToken ? "***" : "none",
-          expected: this.gmToken ? "***" : "none"
+          expected: this.gmToken ? "***" : "none",
         });
         return new Response("forbidden", { status: 403 });
       }
 
       console.log("Resetting game...");
-      
+
       // ゲーム状態をリセット
       this.room.status = "waiting";
       this.room.rounds = [];
-      
+
       // 全員の準備状態をリセット（readyプロパティがある場合のみ）
       // this.room.users.forEach(user => {
       //   if ('ready' in user) user.ready = false;
@@ -559,7 +559,13 @@ export class RoomDurable {
       const roundCount = this.room.rounds.length;
       const nextUserIndex = roundCount % allUsers.length;
       console.log(
-        `Setting topic setter (all users): round=${roundCount + 1}, userIndex=${nextUserIndex}, userId=${allUsers[nextUserIndex]?.id}, userName=${allUsers[nextUserIndex]?.name}, isGM=${allUsers[nextUserIndex]?.isGM}`
+        `Setting topic setter (all users): round=${
+          roundCount + 1
+        }, userIndex=${nextUserIndex}, userId=${
+          allUsers[nextUserIndex]?.id
+        }, userName=${allUsers[nextUserIndex]?.name}, isGM=${
+          allUsers[nextUserIndex]?.isGM
+        }`
       );
       return allUsers[nextUserIndex]?.id || "";
     }
@@ -635,7 +641,7 @@ export class RoomDurable {
   private handleUserLeave(userId: string) {
     console.log(`User ${userId} explicitly left`);
     this.removeUserById(userId);
-    
+
     // WebSocket接続も清理
     const ws = this.userSocketMap.get(userId);
     if (ws) {
@@ -647,30 +653,32 @@ export class RoomDurable {
   // ユーザーID指定での削除処理
   private removeUserById(userId: string) {
     if (!this.room) return;
-    
-    const userIndex = this.room.users.findIndex(user => user.id === userId);
+
+    const userIndex = this.room.users.findIndex((user) => user.id === userId);
     if (userIndex === -1) return;
-    
+
     const user = this.room.users[userIndex];
-    
+
     // GMの場合は削除しない
     if (user.isGM) {
-      console.log(`GM ${user.name} attempted to leave, but GMs cannot be removed`);
+      console.log(
+        `GM ${user.name} attempted to leave, but GMs cannot be removed`
+      );
       return;
     }
-    
+
     console.log(`Removing user ${user.name} (${userId}) from room`);
-    
+
     // ユーザーを配列から削除
     this.room.users.splice(userIndex, 1);
-    
+
     // ユーザー退出をブロードキャスト
     this.broadcast({
       type: "userLeft",
       userId: user.id,
       userName: user.name,
     } satisfies ServerMessage);
-    
+
     // 更新された状態もブロードキャスト
     this.broadcast({
       type: "state",

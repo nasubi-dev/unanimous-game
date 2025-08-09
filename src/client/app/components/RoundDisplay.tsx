@@ -10,6 +10,7 @@ import {
 } from "../lib/api";
 import { UserCard, TopicDisplay, AnswerInput, GMControls, AnimatedButton } from "./";
 import { useAnswerReveal } from "../lib/useAnimations";
+import { getRandomTopic } from "../lib/topics";
 
 interface RoundDisplayProps {
   state: Room;
@@ -72,6 +73,15 @@ export function RoundDisplay({
     }
   };
 
+  const handleUseAppTopic = () => {
+    const randomTopic = getRandomTopic();
+    setTopicInput(randomTopic);
+    // フォーカスを設定して、ユーザーが編集可能にする
+    setTimeout(() => {
+      topicInputRef.current?.focus();
+    }, 0);
+  };
+
   if (!currentRound) {
     return (
       <div className="text-center p-8 text-lg text-gray-500">
@@ -108,6 +118,18 @@ export function RoundDisplay({
             <div className="text-base font-medium text-left">
               お題を設定してください
             </div>
+            
+            {/* アプリ内のお題を使うボタン */}
+            <div className="mb-3">
+              <AnimatedButton
+                onClick={handleUseAppTopic}
+                size="sm"
+                className="w-[300px] text-sm border-2 border-blue-200 hover:border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 transition-all duration-200 focus:ring-blue-300"
+              >
+                🎲 アプリ内のお題を使う
+              </AnimatedButton>
+            </div>
+
             <input
               ref={topicInputRef}
               type="text"
