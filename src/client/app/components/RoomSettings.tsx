@@ -39,7 +39,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
   return (
     <div className="mb-6">
       <h2 className="text-xl font-bold mb-3">ゲームルール</h2>
-      <div className="bg-white p-4 rounded border space-y-4">
+      <div className="bg-white p-4 rounded border space-y-4 max-w-[600px]">
         <div>
           <label className="block text-base mb-1">お題の出題者</label>
           <div className="space-y-2">

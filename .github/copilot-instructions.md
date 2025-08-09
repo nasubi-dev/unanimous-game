@@ -9,3 +9,7 @@ npm run build:client && npm run dev
 ```bash
 pkill -f "npm run dev" && npm run build:client&& npm run dev
 ```
+
+## コーディングについて
+
+- コンポーネント化は適宜行ってください

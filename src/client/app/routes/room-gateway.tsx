@@ -8,6 +8,7 @@ import {
   userIdStore,
 } from "../lib/api";
 import { getIconForName } from "../lib/icons";
+import { Header } from "../components";
 
 function getOrCreatePlayerName(): string {
   let name = localStorage.getItem("playerName") || "";
@@ -100,7 +101,9 @@ export default function RoomGateway() {
   }
 
   return (
-    <main className="flex items-center justify-center pt-16 pb-4">
+    <>
+      <Header />
+      <main className="flex items-center justify-center pt-16 pb-4">
       <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
         <div className="max-w-[420px] w-full space-y-6 px-4 relative">
           {toast && (
@@ -173,5 +176,6 @@ export default function RoomGateway() {
         </div>
       </div>
     </main>
+    </>
   );
 }

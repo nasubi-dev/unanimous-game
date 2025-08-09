@@ -16,6 +16,7 @@ import {
   RoundDisplay,
   GameFinished,
   Toast,
+  Header,
 } from "../components";
 
 export function meta() {
@@ -228,55 +229,58 @@ export default function Room() {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="text-sm text-gray-600 mb-4">
-        ルーム番号: {state.id}
-      </div>
-
-      <UsersList users={state.users} selfId={selfId} />
-
-      {/* ルーム設定（waiting中のみ） */}
-      {state.status === "waiting" && (
-        <RoomSettings 
-          state={state}
-          setState={setState}
-          setToast={setToast}
-        />
-      )}
-
-      {/* ゲーム開始ボタン */}
-      {state.status === "waiting" && isGM && (
-        <div className="mt-6">
-          <button
-            onClick={handleStartGame}
-            className="bg-green-600 hover:bg-green-700 text-white text-lg rounded px-6 py-4 font-medium"
-          >
-            ゲーム開始
-          </button>
+    <>
+      <Header room={state} />
+      <div className="container mx-auto p-4">
+        <div className="text-sm text-gray-600 mb-4">
+          ルーム番号: {state.id}
         </div>
-      )}
 
-      {/* ゲーム進行画面 */}
-      {state.status === "playing" && (
-        <div className="mt-6 space-y-6">
-          <div className="text-base text-gray-600 mb-2">
-            デバッグ: status={state.status}, rounds={state.rounds.length}, currentRound={currentRound?.id || 'none'}
-          </div>
+        <UsersList users={state.users} selfId={selfId} />
 
-          <WinConditionDisplay state={state} />
-          
-          <RoundDisplay 
+        {/* ルーム設定（waiting中のみ） */}
+        {state.status === "waiting" && (
+          <RoomSettings 
             state={state}
-            currentRound={currentRound}
-            selfId={selfId}
+            setState={setState}
             setToast={setToast}
           />
-          
-          <GameFinished state={state} />
-        </div>
-      )}
+        )}
 
-      <Toast message={toast} onClose={handleToastClose} />
-    </div>
+        {/* ゲーム開始ボタン */}
+        {state.status === "waiting" && isGM && (
+          <div className="mt-6">
+            <button
+              onClick={handleStartGame}
+              className="bg-green-600 hover:bg-green-700 text-white text-lg rounded px-6 py-4 font-medium"
+            >
+              ゲーム開始
+            </button>
+          </div>
+        )}
+
+        {/* ゲーム進行画面 */}
+        {state.status === "playing" && (
+          <div className="mt-6 space-y-6">
+            <div className="text-base text-gray-600 mb-2">
+              デバッグ: status={state.status}, rounds={state.rounds.length}, currentRound={currentRound?.id || 'none'}
+            </div>
+
+            <WinConditionDisplay state={state} />
+            
+            <RoundDisplay 
+              state={state}
+              currentRound={currentRound}
+              selfId={selfId}
+              setToast={setToast}
+            />
+            
+            <GameFinished state={state} />
+          </div>
+        )}
+
+        <Toast message={toast} onClose={handleToastClose} />
+      </div>
+    </>
   );
 }
