@@ -486,10 +486,11 @@ export class RoomDurable {
       if (allUsers.length === 0) return "";
 
       // 既存のラウンド数を基準にして次の人を選択
+      // 新しいラウンドを作成する直前なので、現在のラウンド数がそのまま次のインデックスになる
       const roundCount = this.room.rounds.length;
       const nextUserIndex = roundCount % allUsers.length;
       console.log(
-        `Setting topic setter (all users): round=${roundCount}, userIndex=${nextUserIndex}, userId=${allUsers[nextUserIndex]?.id}, userName=${allUsers[nextUserIndex]?.name}, isGM=${allUsers[nextUserIndex]?.isGM}`
+        `Setting topic setter (all users): round=${roundCount + 1}, userIndex=${nextUserIndex}, userId=${allUsers[nextUserIndex]?.id}, userName=${allUsers[nextUserIndex]?.name}, isGM=${allUsers[nextUserIndex]?.isGM}`
       );
       return allUsers[nextUserIndex]?.id || "";
     }

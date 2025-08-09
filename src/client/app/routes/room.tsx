@@ -75,6 +75,14 @@ export default function Room() {
           console.log("Round created:", msg.round);
           setState((prev) => {
             if (!prev) return null;
+            
+            // 同じIDのラウンドが既に存在する場合は追加しない（重複防止）
+            const existingRound = prev.rounds.find(r => r.id === msg.round.id);
+            if (existingRound) {
+              console.log("Round already exists, skipping addition:", msg.round.id);
+              return prev;
+            }
+            
             console.log("Adding round to state. Previous rounds:", prev.rounds.length);
             const newState = {
               ...prev,

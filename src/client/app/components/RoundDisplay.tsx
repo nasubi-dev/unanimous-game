@@ -88,7 +88,7 @@ export function RoundDisplay({ state, currentRound, selfId, setToast }: RoundDis
     <>
       <div className="p-4 border rounded-lg">
         <h3 className="font-medium mb-3 text-lg">
-          ラウンド {state.rounds.length} 
+          ラウンド {state.rounds.findIndex(r => r.id === currentRound.id) + 1} 
           {currentRound.result === "opened" ? " (結果発表)" : ""}
         </h3>
 
