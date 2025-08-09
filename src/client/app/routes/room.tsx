@@ -230,10 +230,6 @@ export default function Room() {
 
   return (
     <Expanded room={state}>
-      <div className="text-sm text-gray-600 mb-4">
-        ルーム番号: {state.id}
-      </div>
-
       <UsersList users={state.users} selfId={selfId} />
 
       {/* ルーム設定（waiting中のみ） */}
@@ -247,7 +243,7 @@ export default function Room() {
 
       {/* ゲーム開始ボタン */}
       {state.status === "waiting" && isGM && (
-        <div className="mt-6">
+        <div className="mt-6 flex justify-center">
           <button
             onClick={handleStartGame}
             className="bg-green-600 hover:bg-green-700 text-white text-lg rounded px-6 py-4 font-medium"

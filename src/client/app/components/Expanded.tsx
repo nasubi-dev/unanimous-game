@@ -11,7 +11,7 @@ export function Expanded({ children, room }: ExpandedProps) {
   return (
     <>
       <Header room={room} />
-      <main className="w-full max-w-[800px] mx-auto px-4 py-6">
+      <main className="w-full max-w-[800px] mx-auto px-4 py-6 flex flex-col justify-center">
         {children}
       </main>
     </>

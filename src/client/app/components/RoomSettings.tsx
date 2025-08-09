@@ -90,9 +90,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
                 <option value="none">勝利条件なし</option>
               </select>
               {state.settings?.winCondition?.type !== "none" && (
-                <input
-                  type="number"
-                  min={1}
+                <select
                   value={state.settings.winCondition.value}
                   onChange={(e) =>
                     setState((s) => s ? ({
@@ -108,7 +106,11 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
                   }
                   className="border rounded p-3 w-20 text-base"
                   disabled={!isGM}
-                />
+                >
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
+                    <option key={num} value={num}>{num}</option>
+                  ))}
+                </select>
               )}
             </div>
           </div>
