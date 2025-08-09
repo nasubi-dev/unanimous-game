@@ -7,3 +7,4 @@ export { Toast } from "./Toast";
 export { Header } from "./Header";
 export { HowToPlayModal } from "./HowToPlayModal";
 export { Expanded } from "./Expanded";
+export { GameStartCountdown } from "./GameStartCountdown";

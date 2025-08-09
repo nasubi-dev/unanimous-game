@@ -17,6 +17,7 @@ import {
   GameFinished,
   Toast,
   Expanded,
+  GameStartCountdown,
 } from "../components";
 
 export function meta() {
@@ -30,6 +31,7 @@ export default function Room() {
   const wsRef = useRef<WebSocket | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [selfId, setSelfId] = useState<string | null>(null);
+  const [showCountdown, setShowCountdown] = useState(false);
 
   useEffect(() => {
     // まず状態とselfIdを設定
@@ -204,8 +206,15 @@ export default function Room() {
       return;
     }
 
+    setShowCountdown(true);
+  };
+
+  const handleCountdownComplete = async () => {
+    setShowCountdown(false);
+    const token = gmTokenStore.load(id);
+
     try {
-      await startGame(id, token);
+      await startGame(id, token!);
       setToast("ゲームを開始しました");
     } catch (e) {
       if (e instanceof ApiError && e.body) {
@@ -238,35 +247,38 @@ export default function Room() {
 
   return (
     <Expanded room={state}>
-      <UsersList users={state.users} selfId={selfId} />
-
-      {/* ルーム設定（waiting中のみ） */}
+      {/* カウントダウン表示 */}
+      {showCountdown && <GameStartCountdown onComplete={handleCountdownComplete} />}
+      
+      {/* waiting中の画面 */}
       {state.status === "waiting" && (
-        <RoomSettings 
-          state={state}
-          setState={setState}
-          setToast={setToast}
-        />
-      )}
+        <>
+          <UsersList users={state.users} selfId={selfId} />
 
-      {/* ゲーム開始ボタン */}
-      {state.status === "waiting" && isGM && (
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={handleStartGame}
-            className="bg-green-600 hover:bg-green-700 text-white text-lg rounded px-6 py-4 font-medium"
-          >
-            ゲーム開始
-          </button>
-        </div>
+          {/* ルーム設定 */}
+          <RoomSettings 
+            state={state}
+            setState={setState}
+            setToast={setToast}
+          />
+
+          {/* ゲーム開始ボタン */}
+          {isGM && (
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={handleStartGame}
+                className="bg-green-600 hover:bg-green-700 text-white text-lg rounded px-6 py-4 font-medium"
+              >
+                ゲーム開始
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* ゲーム進行画面 */}
       {state.status === "playing" && (
-        <div className="mt-6 space-y-6">
-          <div className="text-base text-gray-600 mb-2">
-            デバッグ: status={state.status}, rounds={state.rounds.length}, currentRound={currentRound?.id || 'none'}
-          </div>
+        <div className="space-y-6">
 
           <WinConditionDisplay state={state} />
           

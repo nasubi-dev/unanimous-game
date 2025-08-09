@@ -10,34 +10,42 @@ export function WinConditionDisplay({ state }: WinConditionDisplayProps) {
   }
 
   return (
-    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-      <h3 className="text-sm font-medium text-yellow-800 mb-2">
-        🎯 勝利条件
-      </h3>
+    <div className="max-w-md mx-auto text-center space-y-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+      <h3 className="text-sm font-medium text-yellow-800 mb-2">🎯 勝利条件</h3>
       {state.settings.winCondition.type === "count" && (
-        <div className="text-yellow-700">
-          <p>目標: {state.settings.winCondition.value}回一致でクリア</p>
-          <p>現在: {state.rounds.filter(r => r.unanimous === true).length} / {state.settings.winCondition.value} 回達成</p>
+        <div className="text-yellow-700 flex justify-between items-center">
+          <span>
+            {state.settings.winCondition.value}回一致でクリア
+          </span>
+          <span>
+            {state.rounds.filter((r) => r.unanimous === true).length} /{" "}
+            {state.settings.winCondition.value}
+          </span>
         </div>
       )}
-      {state.settings.winCondition.type === "consecutive" && (() => {
-        // 連続一致回数を計算
-        let consecutiveCount = 0;
-        for (let i = state.rounds.length - 1; i >= 0; i--) {
-          if (state.rounds[i].unanimous === true) {
-            consecutiveCount++;
-          } else if (state.rounds[i].unanimous === false) {
-            break;
+      {state.settings.winCondition.type === "consecutive" &&
+        (() => {
+          // 連続一致回数を計算
+          let consecutiveCount = 0;
+          for (let i = state.rounds.length - 1; i >= 0; i--) {
+            if (state.rounds[i].unanimous === true) {
+              consecutiveCount++;
+            } else if (state.rounds[i].unanimous === false) {
+              break;
+            }
+            // unanimous === null の場合は判定待ちなのでスキップ
           }
-          // unanimous === null の場合は判定待ちなのでスキップ
-        }
-        return (
-          <div className="text-yellow-700">
-            <p>目標: {state.settings.winCondition.value}回連続一致でクリア</p>
-            <p>現在: {consecutiveCount} / {state.settings.winCondition.value} 回連続達成</p>
-          </div>
-        );
-      })()}
+          return (
+            <div className="text-yellow-700 flex justify-between items-center">
+              <span>
+                {state.settings.winCondition.value}回連続一致でクリア
+              </span>
+              <span>
+                {consecutiveCount} / {state.settings.winCondition.value}
+              </span>
+            </div>
+          );
+        })()}
     </div>
   );
 }
