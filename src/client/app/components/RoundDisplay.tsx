@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { Room, Round } from "../../../shared/types";
 import {
   gmTokenStore,
@@ -8,7 +8,8 @@ import {
   judgeResult,
   createRound,
 } from "../lib/api";
-import { UserCard, TopicDisplay, AnswerInput, GMControls } from "./";
+import { UserCard, TopicDisplay, AnswerInput, GMControls, AnimatedButton } from "./";
+import { useAnswerReveal } from "../lib/useAnimations";
 
 interface RoundDisplayProps {
   state: Room;
@@ -25,8 +26,30 @@ export function RoundDisplay({
 }: RoundDisplayProps) {
   const [topicInput, setTopicInput] = useState("");
   const topicInputRef = useRef<HTMLInputElement>(null);
+  const [animationExecuted, setAnimationExecuted] = useState<string | null>(null);
+
+  // 回答公開アニメーション用のフック
+  const { containerRef: answersContainerRef, revealAnswers } = useAnswerReveal<HTMLDivElement>();
 
   const isGM = gmTokenStore.load(state.id);
+
+  // 回答が公開されたときのアニメーション実行（一度だけ）
+  useEffect(() => {
+    if (currentRound?.result === "opened" && currentRound.id !== animationExecuted) {
+      // このラウンドでまだアニメーションが実行されていない場合のみ実行
+      if (revealAnswers) {
+        revealAnswers('.answer-card', 0.5, 0.4);
+        setAnimationExecuted(currentRound.id);
+      }
+    }
+  }, [currentRound?.result, currentRound?.id, revealAnswers, animationExecuted]);
+
+  // 新しいラウンドが始まったときにアニメーション実行フラグをリセット
+  useEffect(() => {
+    if (currentRound?.result === "unopened") {
+      setAnimationExecuted(null);
+    }
+  }, [currentRound?.result]);
 
   // 計算されたプロパティ
   const canSetTopic =
@@ -99,13 +122,14 @@ export function RoundDisplay({
               placeholder="お題を入力..."
               autoFocus
             />
-            <button
+            <AnimatedButton
               onClick={handleSetTopic}
               disabled={!topicInput.trim()}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-base px-4 py-3 rounded"
+              variant="primary"
+              className="w-full disabled:bg-gray-400 disabled:hover:bg-gray-400"
             >
               設定
-            </button>
+            </AnimatedButton>
           </div>
         </div>
       )}
@@ -189,18 +213,31 @@ export function RoundDisplay({
 
           <div className="mb-6">
             <h4 className="font-medium mb-6 text-lg text-center">回答結果</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto pt-2">
+            <div 
+              ref={answersContainerRef}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto pt-2"
+              style={{ perspective: '1000px' }}
+            >
               {state.users.map((user) => {
                 const answer = currentRound.answers.find(
                   (a) => a.userId === user.id
                 );
                 return (
-                  <UserCard
-                    key={user.id}
-                    user={user}
-                    answer={answer?.value}
-                    mode="result"
-                  />
+                  <div 
+                    key={user.id} 
+                    className="answer-card"
+                    style={{ 
+                      opacity: 0,
+                      transform: 'rotateY(-180deg)',
+                      transformStyle: 'preserve-3d'
+                    }}
+                  >
+                    <UserCard
+                      user={user}
+                      answer={answer?.value}
+                      mode="result"
+                    />
+                  </div>
                 );
               })}
             </div>

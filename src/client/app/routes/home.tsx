@@ -8,6 +8,7 @@ import {
   getIconForName,
   getSpecialIconFromName,
 } from "../lib/icons";
+import { AnimatedButton } from "../components";
 import { Header } from "../components";
 import { Expanded } from "../components";
 
@@ -148,12 +149,13 @@ export default function Home() {
                 placeholder="名前を入力"
                 className="w-full border rounded p-3 text-base"
               />
-              <button
+              <AnimatedButton
                 onClick={onNext}
-                className="w-full rounded py-3 text-lg text-white bg-blue-600 hover:bg-blue-700"
+                variant="primary"
+                className="w-full text-lg py-3"
               >
                 次へ
-              </button>
+              </AnimatedButton>
             </div>
           </nav>
         </div>

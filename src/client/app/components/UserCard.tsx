@@ -1,5 +1,6 @@
 import type { User } from "../../../shared/types";
 import { getIconPath } from "../lib/icons";
+import { useCardTap } from "../lib/useAnimations";
 
 interface UserCardProps {
   user: User;
@@ -9,6 +10,8 @@ interface UserCardProps {
 }
 
 export function UserCard({ user, hasAnswered, answer, mode = "status" }: UserCardProps) {
+  const { ref, handleTap } = useCardTap<HTMLDivElement>();
+  
   // modeプロパティで表示モードを判定
   const isResultMode = mode === "result";
   
@@ -17,12 +20,14 @@ export function UserCard({ user, hasAnswered, answer, mode = "status" }: UserCar
   
   return (
     <div
-      className={`relative p-6 pb-2 rounded-lg border-2 min-h-[120px] ${
+      ref={ref}
+      onClick={handleTap}
+      className={`relative p-6 pb-2 rounded-lg border-2 min-h-[120px] cursor-pointer transition-colors ${
         isResultMode
-          ? "bg-blue-50 border-blue-200"
+          ? "bg-blue-50 border-blue-200 hover:bg-blue-100"
           : hasAnswered
-          ? "bg-green-50 border-green-200"
-          : "bg-gray-50 border-gray-200"
+          ? "bg-green-50 border-green-200 hover:bg-green-100"
+          : "bg-gray-50 border-gray-200 hover:bg-gray-100"
       }`}
     >
       {/* アイコン - カードの上端にかぶるように配置 */}

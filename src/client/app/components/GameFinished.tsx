@@ -1,16 +1,30 @@
 import type { Room } from "../../../shared/types";
+import { useVictoryAnimation } from "../lib/useAnimations";
+import { useEffect } from "react";
 
 interface GameFinishedProps {
   state: Room;
 }
 
 export function GameFinished({ state }: GameFinishedProps) {
+  const { ref, playVictoryEffect } = useVictoryAnimation();
+
+  useEffect(() => {
+    // ゲーム終了時に勝利エフェクトを実行
+    if (playVictoryEffect) {
+      playVictoryEffect();
+    }
+  }, [playVictoryEffect]);
+
   if ((state.status as any) !== "finished") {
     return null;
   }
 
   return (
-    <div className="text-center bg-green-50 border border-green-200 rounded-lg p-6 mt-4">
+    <div 
+      ref={ref}
+      className="text-center bg-green-50 border border-green-200 rounded-lg p-6 mt-4"
+    >
       <h3 className="text-xl font-bold text-green-700 mb-2">
         🎉 ゲーム終了！
       </h3>

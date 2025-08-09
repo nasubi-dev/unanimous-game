@@ -12,3 +12,4 @@ export { UserCard } from "./UserCard";
 export { TopicDisplay } from "./TopicDisplay";
 export { AnswerInput } from "./AnswerInput";
 export { GMControls } from "./GMControls";
+export { AnimatedButton } from "./AnimatedButton";

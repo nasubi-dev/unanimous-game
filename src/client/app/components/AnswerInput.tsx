@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AnimatedButton } from "./AnimatedButton";
 
 interface AnswerInputProps {
   onSubmit: (answer: string) => Promise<void>;
@@ -38,13 +39,14 @@ export function AnswerInput({ onSubmit, disabled = false }: AnswerInputProps) {
         disabled={disabled || submitting}
         autoFocus
       />
-      <button
+      <AnimatedButton
         onClick={handleSubmit}
         disabled={!answerInput.trim() || submitting || disabled}
-        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-base px-4 py-3 rounded"
+        variant="success"
+        className="w-full disabled:bg-gray-400 disabled:hover:bg-gray-400"
       >
         {submitting ? "送信中..." : "送信"}
-      </button>
+      </AnimatedButton>
     </div>
   );
 }

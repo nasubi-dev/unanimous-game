@@ -1,3 +1,5 @@
+import { AnimatedButton } from './AnimatedButton';
+
 interface GMControlsProps {
   answeredCount: number;
   totalCount: number;
@@ -30,12 +32,13 @@ export function GMControls({
               <div className="text-base text-gray-600">
                 {answeredCount} / {totalCount} 人
               </div>
-              <button
+              <AnimatedButton
                 onClick={onOpenRound}
-                className="bg-orange-600 hover:bg-orange-700 text-white text-base px-6 py-3 rounded shadow-lg"
+                variant="warning"
+                className="shadow-lg"
               >
                 回答を公開
-              </button>
+              </AnimatedButton>
             </div>
           </div>
         </div>
@@ -47,18 +50,20 @@ export function GMControls({
     <div className="space-y-4">
       {showJudgeButtons && onJudgeResult && unanimous === null && (
         <div className="flex gap-2">
-          <button
+          <AnimatedButton
             onClick={() => onJudgeResult(true)}
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white text-base px-4 py-3 rounded"
+            variant="success"
+            className="flex-1"
           >
             全員一致
-          </button>
-          <button
+          </AnimatedButton>
+          <AnimatedButton
             onClick={() => onJudgeResult(false)}
-            className="flex-1 bg-red-600 hover:bg-red-700 text-white text-base px-4 py-3 rounded"
+            variant="danger"
+            className="flex-1"
           >
             一致しなかった
-          </button>
+          </AnimatedButton>
         </div>
       )}
 
@@ -74,12 +79,14 @@ export function GMControls({
 
       {showCreateButton && onCreateRound && (
         <div className="text-center">
-          <button
+          <AnimatedButton
             onClick={onCreateRound}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-lg px-6 py-4 rounded font-medium"
+            variant="primary"
+            size="lg"
+            className="font-medium"
           >
             次のラウンドを始める
-          </button>
+          </AnimatedButton>
         </div>
       )}
     </div>

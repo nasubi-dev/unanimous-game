@@ -18,6 +18,7 @@ import {
   Toast,
   Expanded,
   GameStartCountdown,
+  AnimatedButton,
 } from "../components";
 
 export function meta() {
@@ -274,12 +275,14 @@ export default function Room() {
           {/* ゲーム開始ボタン */}
           {isGM && (
             <div className="mt-6 flex justify-center">
-              <button
+              <AnimatedButton
                 onClick={handleStartGame}
-                className="bg-green-600 hover:bg-green-700 text-white text-lg rounded px-6 py-4 font-medium"
+                variant="success"
+                size="lg"
+                className="font-medium px-6"
               >
                 ゲーム開始
-              </button>
+              </AnimatedButton>
             </div>
           )}
         </>
