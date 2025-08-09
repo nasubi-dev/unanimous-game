@@ -28,7 +28,7 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
           <section>
             <h3 className="text-lg font-semibold mb-2">基本的な流れ</h3>
             <ol className="list-decimal list-inside space-y-2">
-              <li>GMがお題を設定します</li>
+              <li>お題を設定します</li>
               <li>参加者全員がお題に対する回答を入力します</li>
               <li>全員の回答が出そろったら、GMが回答を公開します</li>
               <li>GMが「全員一致」か「一致しなかった」かを判定します</li>
@@ -51,7 +51,7 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
             <ul className="list-disc list-inside space-y-1">
               <li>他の参加者の考え方を想像してみましょう</li>
               <li>シンプルで一般的な回答を心がけましょう</li>
-              <li>みんなで話し合いながら進めると楽しいです</li>
+              <li>みんなで話し合いながら進めましょう!!</li>
             </ul>
           </section>
         </div>
