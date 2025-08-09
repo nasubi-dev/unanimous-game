@@ -51,7 +51,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
                 onChange={() => setState((s) => s ? ({ ...s, settings: { ...s.settings, topicMode: "gm" } }) : null)}
                 disabled={!isGM}
               />
-              <span>GMが決める</span>
+              <span>毎回GMが出題する</span>
             </label>
             <label className="inline-flex items-center gap-2 text-base">
               <input
@@ -61,7 +61,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
                 onChange={() => setState((s) => s ? ({ ...s, settings: { ...s.settings, topicMode: "all" } }) : null)}
                 disabled={!isGM}
               />
-              <span>全員一周する</span>
+              <span>順番に出題する</span>
             </label>
           </div>
         </div>

@@ -42,13 +42,17 @@ function getOrCreatePlayerIcon(): string | number {
 export default function RoomGateway() {
   const nav = useNavigate();
   const [playerName, setPlayerName] = useState("");
+  const [playerIcon, setPlayerIcon] = useState<string | number>(1);
   const [toast, setToast] = useState<string | null>(null);
   const [showJoin, setShowJoin] = useState(false);
   const [roomId, setRoomId] = useState("");
   const [loading, setLoading] = useState<"create" | "join" | null>(null);
 
   useEffect(() => {
-    setPlayerName(getOrCreatePlayerName());
+    const name = getOrCreatePlayerName();
+    const icon = getOrCreatePlayerIcon();
+    setPlayerName(name);
+    setPlayerIcon(icon);
   }, []);
 
   useEffect(() => {
@@ -58,10 +62,10 @@ export default function RoomGateway() {
   }, [toast]);
 
   async function onCreate() {
-    const name = getOrCreatePlayerName();
-    const icon = getOrCreatePlayerIcon();
     setLoading("create");
     try {
+      const name = getOrCreatePlayerName();
+      const icon = getOrCreatePlayerIcon();
       const res = await createRoom({ name, icon });
       gmTokenStore.save(res.roomId, res.gmToken);
       if (res.gmUserId) userIdStore.save(res.roomId, res.gmUserId);
@@ -79,10 +83,10 @@ export default function RoomGateway() {
 
   async function onJoin() {
     if (!roomIdOk) return;
-    const name = getOrCreatePlayerName();
-    const icon = getOrCreatePlayerIcon();
     setLoading("join");
     try {
+      const name = getOrCreatePlayerName();
+      const icon = getOrCreatePlayerIcon();
       const jr = await joinRoom(roomId, { name, icon });
       if (jr?.userId) userIdStore.save(roomId, jr.userId);
       nav(`/room/${roomId}`);

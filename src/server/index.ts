@@ -6,9 +6,10 @@ const app = new Hono<{ Bindings: Env }>();
 
 // API: rooms
 app.post('/api/rooms', async (c) => {
-  // 入力: { name }
-  const body = await c.req.json<{ name?: string }>().catch(() => ({} as any));
+  // 入力: { name, icon }
+  const body = await c.req.json<{ name?: string; icon?: string | number }>().catch(() => ({} as any));
   const name = (body?.name ?? '').toString().trim();
+  const icon = body?.icon;
   if (!name) return c.text('name required', 400);
   // 4桁の roomId を生成し、その名前で DO を作成
   const roomId = (Math.floor(Math.random() * 9000) + 1000).toString();
@@ -17,7 +18,7 @@ app.post('/api/rooms', async (c) => {
   const res = await stub.fetch(new URL('/create', 'http://do').toString(), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ roomId, name }),
+    body: JSON.stringify({ roomId, name, icon }),
   });
   // DO からは { roomId, gmId, gmToken } が返る
   return new Response(await res.text(), { status: res.status, headers: { 'content-type': 'application/json' } });

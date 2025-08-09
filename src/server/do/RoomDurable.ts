@@ -45,7 +45,7 @@ export class RoomDurable {
       };
       const providedId = (body.roomId ?? "").toString().trim();
       const gmName = (body.name ?? "").toString().trim();
-      const gmIcon = body.icon ?? 1;
+      const gmIcon = body.icon !== undefined ? body.icon : 1;
       const { roomId, gmId, gmToken } = this.initRoom(providedId);
       this.gmToken = gmToken;
       // GM をユーザーとして登録
@@ -63,7 +63,7 @@ export class RoomDurable {
         icon?: string | number;
       };
       const name = (body.name ?? "").toString().trim();
-      const icon = body.icon ?? 1;
+      const icon = body.icon !== undefined ? body.icon : 1;
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
       if (!name) return new Response("name required", { status: 400 });

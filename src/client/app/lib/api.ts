@@ -25,7 +25,9 @@ export class ApiError extends Error {
   }
 }
 
-export async function createRoom(body: CreateRoomRequest): Promise<CreateRoomResponse> {
+export async function createRoom(
+  body: CreateRoomRequest
+): Promise<CreateRoomResponse> {
   const res = await fetch(`${BASE}/api/rooms`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -68,7 +70,10 @@ export function connectWs(id: string): WebSocket {
   return new WebSocket(`${proto}://${location.host}/ws/${id}`);
 }
 
-export async function updateSettings(id: string, body: UpdateSettingsRequest): Promise<{ ok: true }> {
+export async function updateSettings(
+  id: string,
+  body: UpdateSettingsRequest
+): Promise<{ ok: true }> {
   const res = await fetch(`${BASE}/api/rooms/${id}/settings`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
@@ -81,7 +86,10 @@ export async function updateSettings(id: string, body: UpdateSettingsRequest): P
   return res.json();
 }
 
-export async function startGame(id: string, gmToken: string): Promise<{ ok: true }> {
+export async function startGame(
+  id: string,
+  gmToken: string
+): Promise<{ ok: true }> {
   const res = await fetch(`${BASE}/api/rooms/${id}/start`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -94,7 +102,10 @@ export async function startGame(id: string, gmToken: string): Promise<{ ok: true
   return res.json();
 }
 
-export async function createRound(roomId: string, gmToken: string): Promise<{ roundId: string }> {
+export async function createRound(
+  roomId: string,
+  gmToken: string
+): Promise<{ roundId: string }> {
   const res = await fetch(`${BASE}/api/rooms/${roomId}/round`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -107,12 +118,24 @@ export async function createRound(roomId: string, gmToken: string): Promise<{ ro
   return res.json();
 }
 
-export async function setTopic(roomId: string, roundId: string, topic: string, setterId: string): Promise<{ ok: true }> {
-  const res = await fetch(`${BASE}/api/rooms/${roomId}/round/${roundId}/topic`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ roundId, topic, setterId } satisfies SetTopicRequest),
-  });
+export async function setTopic(
+  roomId: string,
+  roundId: string,
+  topic: string,
+  setterId: string
+): Promise<{ ok: true }> {
+  const res = await fetch(
+    `${BASE}/api/rooms/${roomId}/round/${roundId}/topic`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        roundId,
+        topic,
+        setterId,
+      } satisfies SetTopicRequest),
+    }
+  );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new ApiError(res.status, "set topic failed", text);
@@ -120,12 +143,24 @@ export async function setTopic(roomId: string, roundId: string, topic: string, s
   return res.json();
 }
 
-export async function submitAnswer(roomId: string, roundId: string, userId: string, value: string): Promise<{ ok: true }> {
-  const res = await fetch(`${BASE}/api/rooms/${roomId}/round/${roundId}/answer`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ roundId, userId, value } satisfies SubmitAnswerRequest),
-  });
+export async function submitAnswer(
+  roomId: string,
+  roundId: string,
+  userId: string,
+  value: string
+): Promise<{ ok: true }> {
+  const res = await fetch(
+    `${BASE}/api/rooms/${roomId}/round/${roundId}/answer`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        roundId,
+        userId,
+        value,
+      } satisfies SubmitAnswerRequest),
+    }
+  );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new ApiError(res.status, "submit answer failed", text);
@@ -133,7 +168,11 @@ export async function submitAnswer(roomId: string, roundId: string, userId: stri
   return res.json();
 }
 
-export async function openRound(roomId: string, roundId: string, gmToken: string): Promise<{ ok: true }> {
+export async function openRound(
+  roomId: string,
+  roundId: string,
+  gmToken: string
+): Promise<{ ok: true }> {
   const res = await fetch(`${BASE}/api/rooms/${roomId}/round/${roundId}/open`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -146,12 +185,24 @@ export async function openRound(roomId: string, roundId: string, gmToken: string
   return res.json();
 }
 
-export async function judgeResult(roomId: string, roundId: string, unanimous: boolean, gmToken: string): Promise<{ ok: true }> {
-  const res = await fetch(`${BASE}/api/rooms/${roomId}/round/${roundId}/result`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ roundId, unanimous, gmToken } satisfies JudgeResultRequest),
-  });
+export async function judgeResult(
+  roomId: string,
+  roundId: string,
+  unanimous: boolean,
+  gmToken: string
+): Promise<{ ok: true }> {
+  const res = await fetch(
+    `${BASE}/api/rooms/${roomId}/round/${roundId}/result`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        roundId,
+        unanimous,
+        gmToken,
+      } satisfies JudgeResultRequest),
+    }
+  );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new ApiError(res.status, "judge result failed", text);
