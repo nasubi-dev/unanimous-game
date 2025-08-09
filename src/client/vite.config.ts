@@ -5,4 +5,11 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
+  publicDir: "public", // publicディレクトリの内容をビルド結果にコピー
+  build: {
+    // PWAファイルを含める設定
+    rollupOptions: {
+      external: [],
+    }
+  }
 });
