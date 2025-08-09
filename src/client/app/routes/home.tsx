@@ -11,6 +11,7 @@ import {
 import { AnimatedButton } from "../components";
 import { Header } from "../components";
 import { Expanded } from "../components";
+import { Footer } from "../components";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -110,56 +111,60 @@ export default function Home() {
     nav("/room");
   }
   return (
-    <Expanded>
-      <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
-        <div className="w-full space-y-6 px-4 max-w-[600px]">
-          <nav className="rounded-3xl border border-gray-200 p-6 space-y-4">
-            <p className="leading-7 text-lg text-gray-700 text-center">
-              プレイヤー情報の登録
-            </p>
-
-            {/* アイコン選択エリア */}
-            <div className="flex flex-col items-center space-y-3">
-              <div className="relative">
-                <img
-                  src={getIconPath(icon)}
-                  alt="Player Icon"
-                  className="w-20 h-20 rounded-full border-2 border-gray-300"
-                />
-                {!isSpecialName && (
-                  <button
-                    onClick={onRandomizeIcon}
-                    className="absolute -top-1 -right-1 w-6 h-6 bg-blue-500 hover:bg-blue-600 rounded-full text-white text-xs flex items-center justify-center font-bold"
-                    title="アイコンをランダムに変更"
-                  >
-                    🎲
-                  </button>
-                )}
-                {isSpecialName && <div></div>}
-              </div>
-              <p className="text-base text-gray-500">
-                右上のボタンでアイコンを変更できます
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      <main className="flex-1 w-full max-w-[800px] mx-auto px-4 py-6 flex flex-col justify-center">
+        <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
+          <div className="w-full space-y-6 px-4 max-w-[600px]">
+            <nav className="rounded-3xl border border-gray-200 p-6 space-y-4">
+              <p className="leading-7 text-lg text-gray-700 text-center">
+                プレイヤー情報の登録
               </p>
-            </div>
 
-            <div className="space-y-3">
-              <input
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="名前を入力"
-                className="w-full border rounded p-3 text-base"
-              />
-              <AnimatedButton
-                onClick={onNext}
-                variant="primary"
-                className="w-full text-lg py-3"
-              >
-                次へ
-              </AnimatedButton>
-            </div>
-          </nav>
+              {/* アイコン選択エリア */}
+              <div className="flex flex-col items-center space-y-3">
+                <div className="relative">
+                  <img
+                    src={getIconPath(icon)}
+                    alt="Player Icon"
+                    className="w-20 h-20 rounded-full border-2 border-gray-300"
+                  />
+                  {!isSpecialName && (
+                    <button
+                      onClick={onRandomizeIcon}
+                      className="absolute -top-1 -right-1 w-6 h-6 bg-blue-500 hover:bg-blue-600 rounded-full text-white text-xs flex items-center justify-center font-bold"
+                      title="アイコンをランダムに変更"
+                    >
+                      🎲
+                    </button>
+                  )}
+                  {isSpecialName && <div></div>}
+                </div>
+                <p className="text-base text-gray-500">
+                  右上のボタンでアイコンを変更できます
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <input
+                  value={name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  placeholder="名前を入力"
+                  className="w-full border rounded p-3 text-base"
+                />
+                <AnimatedButton
+                  onClick={onNext}
+                  variant="primary"
+                  className="w-full text-lg py-3"
+                >
+                  次へ
+                </AnimatedButton>
+              </div>
+            </nav>
+          </div>
         </div>
-      </div>
-    </Expanded>
+      </main>
+      <Footer />
+    </div>
   );
 }
