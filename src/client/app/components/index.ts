@@ -6,3 +6,4 @@ export { GameFinished } from "./GameFinished";
 export { Toast } from "./Toast";
 export { Header } from "./Header";
 export { HowToPlayModal } from "./HowToPlayModal";
+export { Expanded } from "./Expanded";

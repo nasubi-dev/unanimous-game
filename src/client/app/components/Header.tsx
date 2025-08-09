@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Room } from "../../../shared/types";
-import { HowToPlayModal } from "./HowToPlayModal";
+import { HowToPlayModal } from "../components/HowToPlayModal";
 
 interface HeaderProps {
   room?: Room;
@@ -54,7 +54,9 @@ export function Header({ room }: HeaderProps) {
         <div className="flex items-center justify-between max-w-6xl mx-auto">
           {/* 左端: ゲーム名 */}
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-primary-text">全員一致ゲーム</h1>
+            <h1 className="text-xl font-bold text-primary-text">
+              全員一致ゲーム
+            </h1>
           </div>
 
           {/* 中央: ゲーム進行状況 */}

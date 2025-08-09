@@ -9,6 +9,7 @@ import {
   getSpecialIconFromName,
 } from "../lib/icons";
 import { Header } from "../components";
+import { Expanded } from "../components";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -108,9 +109,7 @@ export default function Home() {
     nav("/room");
   }
   return (
-    <>
-      <Header />
-      <main className="flex items-center justify-center pt-16 pb-4">
+    <Expanded>
       <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
         <div className="w-full space-y-6 px-4 max-w-[600px]">
           <nav className="rounded-3xl border border-gray-200 p-6 space-y-4">
@@ -159,7 +158,6 @@ export default function Home() {
           </nav>
         </div>
       </div>
-    </main>
-    </>
+    </Expanded>
   );
 }
