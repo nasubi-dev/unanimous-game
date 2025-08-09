@@ -5,15 +5,19 @@ interface UserCardProps {
   user: User;
   hasAnswered?: boolean;
   answer?: string;
+  mode?: "status" | "result";
 }
 
-export function UserCard({ user, hasAnswered, answer }: UserCardProps) {
-  // 回答がある場合は回答結果表示モード、そうでなければ回答状況表示モード
-  const isResultMode = answer !== undefined;
+export function UserCard({ user, hasAnswered, answer, mode = "status" }: UserCardProps) {
+  // modeプロパティで表示モードを判定
+  const isResultMode = mode === "result";
+  
+  // デバッグログ
+  console.log(`UserCard ${user.name}: mode=${mode}, isResultMode=${isResultMode}, answer=${answer}, hasAnswered=${hasAnswered}`);
   
   return (
     <div
-      className={`relative p-6 pb-8 rounded-lg border-2 min-h-[120px] ${
+      className={`relative p-6 pb-2 rounded-lg border-2 min-h-[120px] ${
         isResultMode
           ? "bg-blue-50 border-blue-200"
           : hasAnswered

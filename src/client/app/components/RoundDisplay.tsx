@@ -199,6 +199,7 @@ export function RoundDisplay({
                     key={user.id}
                     user={user}
                     answer={answer?.value}
+                    mode="result"
                   />
                 );
               })}
