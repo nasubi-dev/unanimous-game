@@ -114,7 +114,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1 w-full max-w-[800px] mx-auto px-4 py-6 flex flex-col justify-center">
-        <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
+        <div className="flex flex-col items-center gap-16">
           <div className="w-full space-y-6 px-4 max-w-[600px]">
             <nav className="rounded-3xl border border-gray-200 p-6 space-y-4">
               <p className="leading-7 text-lg text-gray-700 text-center">
