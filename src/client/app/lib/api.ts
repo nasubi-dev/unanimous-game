@@ -235,3 +235,32 @@ export const userIdStore = {
     localStorage.removeItem(this.key(roomId));
   },
 };
+
+export async function resetRoom(
+  roomId: string,
+  gmToken: string
+): Promise<{ ok: true }> {
+  const res = await fetch(`${BASE}/api/rooms/${roomId}/reset`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${gmToken}`,
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "reset room failed", text);
+  }
+  return res.json();
+}
+
+export function leaveRoom(roomId: string, userId: string): void {
+  const ws = connectWs(roomId);
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ 
+      type: "leave", 
+      userId 
+    }));
+    ws.close();
+  };
+}

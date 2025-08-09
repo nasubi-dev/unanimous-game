@@ -27,6 +27,8 @@ export class RoomDurable {
   private room: Room | null = null;
   private sockets = new Set<WebSocket>();
   private gmToken: string | null = null;
+  private userSocketMap = new Map<string, WebSocket>(); // userId -> WebSocket
+  private socketUserMap = new Map<WebSocket, string>(); // WebSocket -> userId
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -339,6 +341,57 @@ export class RoomDurable {
       });
     }
 
+    // ゲームリセット（GM専用）
+    if (request.method === "POST" && url.pathname.endsWith("/reset")) {
+      if (!this.room)
+        return new Response("Room not initialized", { status: 404 });
+
+      // GM権限チェック
+      const authHeader = request.headers.get("authorization") || "";
+      const xGmToken = request.headers.get("x-gm-token") || "";
+      
+      let providedToken = "";
+      if (authHeader.startsWith("Bearer ")) {
+        providedToken = authHeader.substring(7);
+      } else if (xGmToken) {
+        providedToken = xGmToken;
+      }
+
+      if (!providedToken || providedToken !== this.gmToken) {
+        console.log("Reset failed: invalid GM token", {
+          provided: providedToken ? "***" : "none",
+          expected: this.gmToken ? "***" : "none"
+        });
+        return new Response("forbidden", { status: 403 });
+      }
+
+      console.log("Resetting game...");
+      
+      // ゲーム状態をリセット
+      this.room.status = "waiting";
+      this.room.rounds = [];
+      
+      // 全員の準備状態をリセット（readyプロパティがある場合のみ）
+      // this.room.users.forEach(user => {
+      //   if ('ready' in user) user.ready = false;
+      // });
+
+      // リセット完了をブロードキャスト
+      this.broadcast({
+        type: "roomReset",
+        message: "ゲームがリセットされました",
+      } satisfies ServerMessage);
+
+      // 新しい状態もブロードキャスト
+      this.broadcast({
+        type: "state",
+        room: this.room,
+      } satisfies ServerMessage);
+
+      console.log("Game reset completed");
+      return Response.json({ ok: true });
+    }
+
     // 必要に応じて /start /answer /open などを実装
     if (request.headers.get("Upgrade") === "websocket") {
       const pair = new WebSocketPair();
@@ -356,11 +409,13 @@ export class RoomDurable {
           }`
         );
         this.sockets.delete(server);
+        this.handleUserDisconnect(server);
       });
       server.addEventListener("message", (ev) => this.onMessage(server, ev));
       server.addEventListener("error", (error) => {
         console.log("WebSocket error:", error);
         this.sockets.delete(server);
+        this.handleUserDisconnect(server);
       });
 
       // 接続直後に現状態を送信
@@ -436,7 +491,13 @@ export class RoomDurable {
       if (msg.type === "join") {
         if (!this.room) return;
         const user = this.addUser(msg.name, msg.icon);
+        // WebSocketとユーザーIDの関連付けを保存
+        this.userSocketMap.set(user.id, ws);
+        this.socketUserMap.set(ws, user.id);
         this.broadcast({ type: "userJoined", user } satisfies ServerMessage);
+      }
+      if (msg.type === "leave") {
+        this.handleUserLeave(msg.userId);
       }
     } catch (e) {
       ws.send(
@@ -557,5 +618,63 @@ export class RoomDurable {
     }
 
     return { isWin: false };
+  }
+
+  // WebSocket接続切断時の処理
+  private handleUserDisconnect(ws: WebSocket) {
+    const userId = this.socketUserMap.get(ws);
+    if (userId) {
+      console.log(`User ${userId} disconnected via WebSocket close/error`);
+      this.removeUserById(userId);
+      this.socketUserMap.delete(ws);
+      this.userSocketMap.delete(userId);
+    }
+  }
+
+  // ユーザーの明示的な退出処理
+  private handleUserLeave(userId: string) {
+    console.log(`User ${userId} explicitly left`);
+    this.removeUserById(userId);
+    
+    // WebSocket接続も清理
+    const ws = this.userSocketMap.get(userId);
+    if (ws) {
+      this.socketUserMap.delete(ws);
+      this.userSocketMap.delete(userId);
+    }
+  }
+
+  // ユーザーID指定での削除処理
+  private removeUserById(userId: string) {
+    if (!this.room) return;
+    
+    const userIndex = this.room.users.findIndex(user => user.id === userId);
+    if (userIndex === -1) return;
+    
+    const user = this.room.users[userIndex];
+    
+    // GMの場合は削除しない
+    if (user.isGM) {
+      console.log(`GM ${user.name} attempted to leave, but GMs cannot be removed`);
+      return;
+    }
+    
+    console.log(`Removing user ${user.name} (${userId}) from room`);
+    
+    // ユーザーを配列から削除
+    this.room.users.splice(userIndex, 1);
+    
+    // ユーザー退出をブロードキャスト
+    this.broadcast({
+      type: "userLeft",
+      userId: user.id,
+      userName: user.name,
+    } satisfies ServerMessage);
+    
+    // 更新された状態もブロードキャスト
+    this.broadcast({
+      type: "state",
+      room: this.room,
+    } satisfies ServerMessage);
   }
 }

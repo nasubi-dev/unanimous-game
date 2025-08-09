@@ -58,12 +58,14 @@ export type ServerMessage =
   | { type: "roundOpened"; roundId: string; answers: Answer[] }
   | { type: "resultJudged"; roundId: string; unanimous: boolean }
   | { type: "gameFinished"; room: Room; winCondition: boolean }
+  | { type: "roomReset"; message: string }
   | { type: "settingsUpdated"; settings: RoomSettings }
   | { type: "error"; message: string };
 
 export type ClientMessage =
   | { type: "ping" }
-  | { type: "join"; name: string; icon: string | number };
+  | { type: "join"; name: string; icon: string | number }
+  | { type: "leave"; userId: string };
 
 // --- API DTOs ---
 export type CreateRoomResponse = {

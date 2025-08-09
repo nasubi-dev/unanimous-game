@@ -5,23 +5,28 @@ export { RoomDurable } from "./do/RoomDurable";
 const app = new Hono<{ Bindings: Env }>();
 
 // API: rooms
-app.post('/api/rooms', async (c) => {
+app.post("/api/rooms", async (c) => {
   // 入力: { name, icon }
-  const body = await c.req.json<{ name?: string; icon?: string | number }>().catch(() => ({} as any));
-  const name = (body?.name ?? '').toString().trim();
+  const body = await c.req
+    .json<{ name?: string; icon?: string | number }>()
+    .catch(() => ({} as any));
+  const name = (body?.name ?? "").toString().trim();
   const icon = body?.icon;
-  if (!name) return c.text('name required', 400);
+  if (!name) return c.text("name required", 400);
   // 4桁の roomId を生成し、その名前で DO を作成
   const roomId = (Math.floor(Math.random() * 9000) + 1000).toString();
   const id = c.env.ROOM_DURABLE.idFromName(roomId);
   const stub = c.env.ROOM_DURABLE.get(id);
-  const res = await stub.fetch(new URL('/create', 'http://do').toString(), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
+  const res = await stub.fetch(new URL("/create", "http://do").toString(), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ roomId, name, icon }),
   });
   // DO からは { roomId, gmId, gmToken } が返る
-  return new Response(await res.text(), { status: res.status, headers: { 'content-type': 'application/json' } });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": "application/json" },
+  });
 });
 
 app.post("/api/rooms/:id/join", async (c) => {
@@ -104,11 +109,14 @@ app.post("/api/rooms/:id/round/:roundId/topic", async (c) => {
   const roundId = c.req.param("roundId");
   const id = c.env.ROOM_DURABLE.idFromName(idParam);
   const stub = c.env.ROOM_DURABLE.get(id);
-  const res = await stub.fetch(new URL(`/round/${roundId}/topic`, "http://do").toString(), {
-    method: "POST",
-    body: await c.req.raw.text(),
-    headers: { "content-type": "application/json" },
-  });
+  const res = await stub.fetch(
+    new URL(`/round/${roundId}/topic`, "http://do").toString(),
+    {
+      method: "POST",
+      body: await c.req.raw.text(),
+      headers: { "content-type": "application/json" },
+    }
+  );
   return new Response(await res.text(), {
     status: res.status,
     headers: { "content-type": "application/json" },
@@ -121,11 +129,14 @@ app.post("/api/rooms/:id/round/:roundId/answer", async (c) => {
   const roundId = c.req.param("roundId");
   const id = c.env.ROOM_DURABLE.idFromName(idParam);
   const stub = c.env.ROOM_DURABLE.get(id);
-  const res = await stub.fetch(new URL(`/round/${roundId}/answer`, "http://do").toString(), {
-    method: "POST",
-    body: await c.req.raw.text(),
-    headers: { "content-type": "application/json" },
-  });
+  const res = await stub.fetch(
+    new URL(`/round/${roundId}/answer`, "http://do").toString(),
+    {
+      method: "POST",
+      body: await c.req.raw.text(),
+      headers: { "content-type": "application/json" },
+    }
+  );
   return new Response(await res.text(), {
     status: res.status,
     headers: { "content-type": "application/json" },
@@ -138,11 +149,14 @@ app.post("/api/rooms/:id/round/:roundId/open", async (c) => {
   const roundId = c.req.param("roundId");
   const id = c.env.ROOM_DURABLE.idFromName(idParam);
   const stub = c.env.ROOM_DURABLE.get(id);
-  const res = await stub.fetch(new URL(`/round/${roundId}/open`, "http://do").toString(), {
-    method: "POST",
-    body: await c.req.raw.text(),
-    headers: { "content-type": "application/json" },
-  });
+  const res = await stub.fetch(
+    new URL(`/round/${roundId}/open`, "http://do").toString(),
+    {
+      method: "POST",
+      body: await c.req.raw.text(),
+      headers: { "content-type": "application/json" },
+    }
+  );
   return new Response(await res.text(), {
     status: res.status,
     headers: { "content-type": "application/json" },
@@ -155,10 +169,29 @@ app.post("/api/rooms/:id/round/:roundId/result", async (c) => {
   const roundId = c.req.param("roundId");
   const id = c.env.ROOM_DURABLE.idFromName(idParam);
   const stub = c.env.ROOM_DURABLE.get(id);
-  const res = await stub.fetch(new URL(`/round/${roundId}/result`, "http://do").toString(), {
+  const res = await stub.fetch(
+    new URL(`/round/${roundId}/result`, "http://do").toString(),
+    {
+      method: "POST",
+      body: await c.req.raw.text(),
+      headers: { "content-type": "application/json" },
+    }
+  );
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "content-type": "application/json" },
+  });
+});
+
+// ルームリセット（GM専用）
+app.post("/api/rooms/:id/reset", async (c) => {
+  const idParam = c.req.param("id");
+  const id = c.env.ROOM_DURABLE.idFromName(idParam);
+  const stub = c.env.ROOM_DURABLE.get(id);
+  const res = await stub.fetch(new URL("/reset", "http://do").toString(), {
     method: "POST",
     body: await c.req.raw.text(),
-    headers: { "content-type": "application/json" },
+    headers: Object.fromEntries(c.req.raw.headers.entries()),
   });
   return new Response(await res.text(), {
     status: res.status,
