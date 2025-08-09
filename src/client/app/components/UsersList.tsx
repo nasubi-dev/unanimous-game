@@ -16,8 +16,8 @@ export function UsersList({ users, selfId }: UsersListProps) {
             key={user.id}
             className={`flex flex-col items-center rounded-lg border-2 ${
               user.id === selfId
-                ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-600"
-                : "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600"
+                ? "bg-blue-50 border-blue-200"
+                : "bg-gray-50 border-gray-200"
             }`}
           >
             {/* アイコン */}
@@ -35,7 +35,7 @@ export function UsersList({ users, selfId }: UsersListProps) {
             {/* バッジエリア */}
             <div className="flex flex-col gap-1 items-center">
               {user.isGM && (
-                <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm px-2 py-1 rounded">
+                <span className="bg-amber-100 text-amber-700 text-sm px-2 py-1 rounded">
                   GM
                 </span>
               )}

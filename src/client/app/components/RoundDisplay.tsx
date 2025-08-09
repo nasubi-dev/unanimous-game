@@ -120,8 +120,8 @@ export function RoundDisplay({ state, currentRound, selfId, setToast }: RoundDis
         {/* お題表示 */}
         {currentRound.topic && (
           <div className="mb-4">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded">
-              <span className="text-base text-blue-600 dark:text-blue-400">お題</span>
+            <div className="bg-blue-50 p-3 rounded">
+              <span className="text-base text-blue-600">お題</span>
               <div className="text-xl font-medium">{currentRound.topic}</div>
             </div>
           </div>
@@ -154,15 +154,15 @@ export function RoundDisplay({ state, currentRound, selfId, setToast }: RoundDis
 
         {/* 回答済み表示 */}
         {hasSubmittedAnswer && currentRound.result === "unopened" && (
-          <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded">
-            <span className="text-green-600 dark:text-green-400 text-base">✓ 回答済み</span>
+          <div className="mb-4 p-3 bg-green-50 rounded">
+            <span className="text-green-600 text-base">✓ 回答済み</span>
           </div>
         )}
 
         {/* 回答状況 */}
         {currentRound.topic && (
           <div className="mb-4">
-            <div className="text-base text-gray-600 dark:text-gray-400">
+            <div className="text-base text-gray-600">
               回答状況: {currentRound.answers.length} / {state.users.length} 人
             </div>
             <div className="mt-1">
@@ -172,7 +172,7 @@ export function RoundDisplay({ state, currentRound, selfId, setToast }: RoundDis
                   className={`inline-block w-3 h-3 rounded-full mr-1 ${
                     currentRound.answers.some(a => a.userId === user.id) 
                       ? "bg-green-500" 
-                      : "bg-gray-300 dark:bg-gray-600"
+                      : "bg-gray-300"
                   }`}
                   title={user.name}
                 />
@@ -201,7 +201,7 @@ export function RoundDisplay({ state, currentRound, selfId, setToast }: RoundDis
               {currentRound.answers.map((answer, index) => {
                 const user = state.users.find(u => u.id === answer.userId);
                 return (
-                  <div key={index} className="flex justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded">
+                  <div key={index} className="flex justify-between p-3 bg-gray-50 rounded">
                     <span className="font-medium text-base">{user?.name || "不明"}</span>
                     <span className="text-base">{answer.value}</span>
                   </div>
@@ -231,8 +231,8 @@ export function RoundDisplay({ state, currentRound, selfId, setToast }: RoundDis
             {currentRound.unanimous !== null && (
               <div className={`mt-4 p-3 rounded text-base ${
                 currentRound.unanimous 
-                  ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300" 
-                  : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"
+                  ? "bg-green-50 text-green-700" 
+                  : "bg-red-50 text-red-700"
               }`}>
                 {currentRound.unanimous ? "✓ 全員一致！" : "✗ 一致しませんでした"}
               </div>

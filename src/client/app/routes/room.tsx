@@ -229,7 +229,7 @@ export default function Room() {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      <div className="text-sm text-gray-600 mb-4">
         ルーム番号: {state.id}
       </div>
 
@@ -259,7 +259,7 @@ export default function Room() {
       {/* ゲーム進行画面 */}
       {state.status === "playing" && (
         <div className="mt-6 space-y-6">
-          <div className="text-base text-gray-600 dark:text-gray-400 mb-2">
+          <div className="text-base text-gray-600 mb-2">
             デバッグ: status={state.status}, rounds={state.rounds.length}, currentRound={currentRound?.id || 'none'}
           </div>
 

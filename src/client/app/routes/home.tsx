@@ -110,8 +110,8 @@ export default function Home() {
     <main className="flex items-center justify-center pt-16 pb-4">
       <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
         <div className="w-full space-y-6 px-4">
-          <nav className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
-            <p className="leading-7 text-lg text-gray-700 dark:text-gray-200 text-center">
+          <nav className="rounded-3xl border border-gray-200 p-6 space-y-4">
+            <p className="leading-7 text-lg text-gray-700 text-center">
               プレイヤー情報の登録
             </p>
 
@@ -134,7 +134,7 @@ export default function Home() {
                 )}
                 {isSpecialName && <div></div>}
               </div>
-              <p className="text-base text-gray-500 dark:text-gray-400">
+              <p className="text-base text-gray-500">
                 右上のボタンでアイコンを変更できます
               </p>
             </div>

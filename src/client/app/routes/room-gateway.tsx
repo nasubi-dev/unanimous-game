@@ -108,8 +108,8 @@ export default function RoomGateway() {
               {toast}
             </div>
           )}
-          <nav className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-5">
-            <p className="text-center text-lg text-gray-700 dark:text-gray-200">
+          <nav className="rounded-3xl border border-gray-200 p-6 space-y-5">
+            <p className="text-center text-lg text-gray-700">
               ようこそ、{playerName}
             </p>
             {!showJoin ? (
@@ -138,7 +138,7 @@ export default function RoomGateway() {
                 <button
                   type="button"
                   onClick={() => setShowJoin(false)}
-                  className="w-full rounded py-3 text-lg text-gray-800 bg-gray-100 hover:bg-gray-200 dark:text-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
+                  className="w-full rounded py-3 text-lg text-gray-800 bg-gray-100 hover:bg-gray-200"
                 >
                   戻る
                 </button>
