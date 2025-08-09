@@ -69,8 +69,24 @@ export default function Room() {
             };
           });
         }
+        if (msg.type === "userLeft") {
+          console.log("User left:", msg.userId, msg.userName);
+          setToast(`${msg.userName}さんが退出しました`);
+          setState((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              users: prev.users.filter(u => u.id !== msg.userId),
+            };
+          });
+        }
+        if (msg.type === "gameCountdownStarted") {
+          console.log("Game countdown started");
+          setShowCountdown(true);
+        }
         if (msg.type === "gameStarted") {
           console.log("Game started:", msg.room);
+          setShowCountdown(false);
           setState(msg.room);
         }
         if (msg.type === "roundCreated") {
@@ -206,15 +222,8 @@ export default function Room() {
       return;
     }
 
-    setShowCountdown(true);
-  };
-
-  const handleCountdownComplete = async () => {
-    setShowCountdown(false);
-    const token = gmTokenStore.load(id);
-
     try {
-      await startGame(id, token!);
+      await startGame(id, token);
       setToast("ゲームを開始しました");
     } catch (e) {
       if (e instanceof ApiError && e.body) {
@@ -248,7 +257,7 @@ export default function Room() {
   return (
     <Expanded room={state}>
       {/* カウントダウン表示 */}
-      {showCountdown && <GameStartCountdown onComplete={handleCountdownComplete} />}
+      {showCountdown && <GameStartCountdown />}
       
       {/* waiting中の画面 */}
       {state.status === "waiting" && (

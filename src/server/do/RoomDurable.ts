@@ -117,33 +117,41 @@ export class RoomDurable {
       if (!body?.gmToken || body.gmToken !== this.gmToken)
         return new Response("forbidden", { status: 403 });
 
-      this.room.status = "playing";
-
-      // 自動で最初のラウンドを作成
-      const roundId = crypto.randomUUID();
-      const setterId = this.getNextTopicSetter();
-
-      const newRound: Round = {
-        id: roundId,
-        topic: "",
-        setterId,
-        answers: [],
-        result: "unopened",
-        unanimous: null,
-      };
-
-      this.room.rounds.push(newRound);
-
+      // まずカウントダウン開始をブロードキャスト
       this.broadcast({
-        type: "gameStarted",
-        room: this.room,
-      } satisfies ServerMessage);
-      this.broadcast({
-        type: "roundCreated",
-        round: newRound,
+        type: "gameCountdownStarted",
       } satisfies ServerMessage);
 
-      return Response.json({ ok: true, roundId });
+      // 1.5秒後に実際のゲーム開始処理を実行
+      setTimeout(() => {
+        this.room!.status = "playing";
+
+        // 自動で最初のラウンドを作成
+        const roundId = crypto.randomUUID();
+        const setterId = this.getNextTopicSetter();
+
+        const newRound: Round = {
+          id: roundId,
+          topic: "",
+          setterId,
+          answers: [],
+          result: "unopened",
+          unanimous: null,
+        };
+
+        this.room!.rounds.push(newRound);
+
+        this.broadcast({
+          type: "gameStarted",
+          room: this.room!,
+        } satisfies ServerMessage);
+        this.broadcast({
+          type: "roundCreated",
+          round: newRound,
+        } satisfies ServerMessage);
+      }, 1500);
+
+      return Response.json({ ok: true });
     }
 
     // ラウンド作成

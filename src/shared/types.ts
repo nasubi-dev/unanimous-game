@@ -41,6 +41,8 @@ export type Room = {
 export type ServerMessage =
   | { type: "state"; room: Room }
   | { type: "userJoined"; user: User }
+  | { type: "userLeft"; userId: string; userName: string }
+  | { type: "gameCountdownStarted" }
   | { type: "gameStarted"; room: Room }
   | { type: "roundCreated"; round: Round }
   | { type: "topicSet"; roundId: string; topic: string }

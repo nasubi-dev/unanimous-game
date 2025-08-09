@@ -8,3 +8,7 @@ export { Header } from "./Header";
 export { HowToPlayModal } from "./HowToPlayModal";
 export { Expanded } from "./Expanded";
 export { GameStartCountdown } from "./GameStartCountdown";
+export { UserCard } from "./UserCard";
+export { TopicDisplay } from "./TopicDisplay";
+export { AnswerInput } from "./AnswerInput";
+export { GMControls } from "./GMControls";

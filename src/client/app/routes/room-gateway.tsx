@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import {
   ApiError,
@@ -48,6 +48,7 @@ export default function RoomGateway() {
   const [showJoin, setShowJoin] = useState(false);
   const [roomId, setRoomId] = useState("");
   const [loading, setLoading] = useState<"create" | "join" | null>(null);
+  const roomIdInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const name = getOrCreatePlayerName();
@@ -128,7 +129,13 @@ export default function RoomGateway() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowJoin(true)}
+                  onClick={() => {
+                    setShowJoin(true);
+                    // フォーカスは次のレンダリングサイクル後に設定
+                    setTimeout(() => {
+                      roomIdInputRef.current?.focus();
+                    }, 0);
+                  }}
                   className="w-full rounded py-3 text-lg text-white bg-gray-800 hover:bg-black"
                 >
                   参加する
@@ -145,6 +152,7 @@ export default function RoomGateway() {
                 </button>
                 <div className="space-y-2">
                   <input
+                    ref={roomIdInputRef}
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength={4}
@@ -152,6 +160,11 @@ export default function RoomGateway() {
                     onChange={(e) => {
                       const v = e.target.value.replace(/\D/g, "").slice(0, 4);
                       setRoomId(v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && roomIdOk && loading !== "join") {
+                        onJoin();
+                      }
                     }}
                     placeholder="4桁の番号"
                     className="w-full border rounded p-3 text-base"
