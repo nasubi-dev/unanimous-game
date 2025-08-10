@@ -40,6 +40,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="全員一致" />
+        
+        {/* SEO関連メタタグ */}
+        <meta name="author" content="nasubi.dev" />
+        <meta name="keywords" content="ゲーム,パーティーゲーム,全員一致,オンラインゲーム,友達,家族" />
+        <meta name="robots" content="index, follow" />
+        
+        {/* OGP（Open Graph Protocol）メタタグ */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="全員一致ゲーム - nasubi.dev" />
+        <meta property="og:locale" content="ja_JP" />
+        <meta property="og:image" content="/ogp/normal.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:type" content="image/png" />
+        
+        {/* Twitter Card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:creator" content="@nasubi_dev" />
+        <meta name="twitter:image" content="/ogp/twitter.png" />
+        
         <Meta />
         <Links />
       </head>

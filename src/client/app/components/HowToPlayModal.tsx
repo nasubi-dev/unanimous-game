@@ -4,7 +4,7 @@ interface HowToPlayModalProps {
 
 export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-primary-bg rounded-lg p-6 max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-4">

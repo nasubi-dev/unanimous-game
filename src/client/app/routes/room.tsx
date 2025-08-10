@@ -24,7 +24,16 @@ import {
 } from "../components";
 
 export function meta() {
-  return [{ title: "Room" }];
+  return [
+    { title: "ルーム - 全員一致ゲーム - nasubi.dev" },
+    { name: "description", content: "全員一致ゲームのルーム画面。仲間と一緒にお題に挑戦しよう！" },
+    { property: "og:title", content: "ルーム - 全員一致ゲーム - nasubi.dev" },
+    { property: "og:description", content: "全員一致ゲームのルーム画面。仲間と一緒にお題に挑戦しよう！" },
+    { property: "og:image", content: "https://zennin-icchi.nasubi.dev/ogp/normal.png" },
+    { name: "twitter:title", content: "ルーム - 全員一致ゲーム - nasubi.dev" },
+    { name: "twitter:description", content: "全員一致ゲームのルーム画面。仲間と一緒にお題に挑戦しよう！" },
+    { name: "twitter:image", content: "https://zennin-icchi.nasubi.dev/ogp/twitter.png" },
+  ];
 }
 
 export default function Room() {

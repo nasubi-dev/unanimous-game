@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router";
+import type { Route } from "./+types/room-gateway";
 import {
   ApiError,
   createRoom,
@@ -9,6 +10,20 @@ import {
 } from "../lib/api";
 import { getIconForName } from "../lib/icons";
 import { Expanded } from "../components";
+
+export function meta({}: Route.MetaArgs) {
+  return [
+    { title: "ルーム作成・参加 - 全員一致ゲーム - nasubi.dev" },
+    { name: "description", content: "全員一致ゲームのルームを作成したり、既存のルームに参加できます。" },
+    { property: "og:title", content: "ルーム作成・参加 - 全員一致ゲーム - nasubi.dev" },
+    { property: "og:description", content: "全員一致ゲームのルームを作成したり、既存のルームに参加できます。" },
+    { property: "og:url", content: "https://zennin-icchi.nasubi.dev/room" },
+    { property: "og:image", content: "https://zennin-icchi.nasubi.dev/ogp/normal.png" },
+    { name: "twitter:title", content: "ルーム作成・参加 - 全員一致ゲーム - nasubi.dev" },
+    { name: "twitter:description", content: "全員一致ゲームのルームを作成したり、既存のルームに参加できます。" },
+    { name: "twitter:image", content: "https://zennin-icchi.nasubi.dev/ogp/twitter.png" },
+  ];
+}
 
 function getOrCreatePlayerName(): string {
   let name = localStorage.getItem("playerName") || "";

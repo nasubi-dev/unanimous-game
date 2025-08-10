@@ -15,8 +15,15 @@ import { Footer } from "../components";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "New React Router App" },
-    { name: "description", content: "Welcome to React Router!" },
+    { title: "全員一致ゲーム - nasubi.dev" },
+    { name: "description", content: "みんなで楽しむ全員一致ゲーム。お題に対してみんなと同じ答えを目指そう！" },
+    { property: "og:title", content: "全員一致ゲーム - nasubi.dev" },
+    { property: "og:description", content: "みんなで楽しむ全員一致ゲーム。お題に対してみんなと同じ答えを目指そう！" },
+    { property: "og:url", content: "https://zennin-icchi.nasubi.dev" },
+    { property: "og:image", content: "https://zennin-icchi.nasubi.dev/ogp/normal.png" },
+    { name: "twitter:title", content: "全員一致ゲーム - nasubi.dev" },
+    { name: "twitter:description", content: "みんなで楽しむ全員一致ゲーム。お題に対してみんなと同じ答えを目指そう！" },
+    { name: "twitter:image", content: "https://zennin-icchi.nasubi.dev/ogp/twitter.png" },
   ];
 }
 
