@@ -62,11 +62,6 @@ export function GameFinished({
         <h3 className="text-3xl font-bold text-green-700 mb-4">
           🎉 ゲーム終了！
         </h3>
-        <p className="text-lg text-green-600 mb-6">
-          勝利条件を達成しました！
-          <br />
-          お疲れ様でした。
-        </p>
         <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-4 mb-6">
           <p>全 {state.rounds.length} ラウンド実施</p>
           <p>
