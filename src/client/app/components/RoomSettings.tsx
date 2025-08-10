@@ -121,7 +121,7 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
             onClick={handleSaveSettings}
             disabled={saving}
             className={`rounded px-4 py-3 text-lg text-white ${
-              saving ? "bg-gray-400 cursor-not-allowed" : "bg-violet-600 hover:bg-violet-700"
+              saving ? "bg-gray-400 cursor-not-allowed" : "bg-violet-500 hover:bg-violet-600"
             }`}
           >
             設定を保存
