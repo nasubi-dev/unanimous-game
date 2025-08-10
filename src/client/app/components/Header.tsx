@@ -66,7 +66,7 @@ export function Header({ room }: HeaderProps) {
           <div className="flex-1 flex items-center justify-center gap-4">
             <div className="flex flex-col items-center gap-2">
               {getGameStatus() && (
-                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                <span className="bg-violet-100 text-violet-800 px-3 py-1 rounded-full text-sm font-medium">
                   {getGameStatus()}
                 </span>
               )}

@@ -114,14 +114,14 @@ const createInstallButton = (): HTMLElement => {
     bottom: 20px;
     right: 20px;
     z-index: 1000;
-    background: #3b82f6;
+    background: #7c3aed;
     color: white;
     border: none;
     border-radius: 12px;
     padding: 12px 20px;
     font-size: 14px;
     font-weight: 600;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
     cursor: pointer;
     transition: all 0.2s ease;
     font-family: Inter, system-ui, sans-serif;
@@ -129,12 +129,12 @@ const createInstallButton = (): HTMLElement => {
   
   button.addEventListener('mouseenter', () => {
     button.style.transform = 'translateY(-2px)';
-    button.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.5)';
+    button.style.boxShadow = '0 6px 20px rgba(124, 58, 237, 0.5)';
   });
   
   button.addEventListener('mouseleave', () => {
     button.style.transform = 'translateY(0)';
-    button.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
+    button.style.boxShadow = '0 4px 12px rgba(124, 58, 237, 0.4)';
   });
   
   return button;

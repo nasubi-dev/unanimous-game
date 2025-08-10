@@ -60,7 +60,7 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
         <div className="mt-6 text-center">
           <button
             onClick={onClose}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-medium"
+            className="bg-violet-600 hover:bg-violet-700 text-white px-6 py-2 rounded font-medium"
           >
             閉じる
           </button>

@@ -122,7 +122,7 @@ export default function RoomGateway() {
                   className={`w-full rounded py-3 text-lg text-white ${
                     loading === "create"
                       ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700"
+                      : "bg-violet-600 hover:bg-violet-700"
                   }`}
                 >
                   ルームを作成

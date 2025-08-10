@@ -132,7 +132,7 @@ export default function Home() {
                   {!isSpecialName && (
                     <button
                       onClick={onRandomizeIcon}
-                      className="absolute -top-1 -right-1 w-6 h-6 bg-blue-500 hover:bg-blue-600 rounded-full text-white text-xs flex items-center justify-center font-bold"
+                      className="absolute -top-1 -right-1 w-6 h-6 bg-violet-500 hover:bg-violet-600 rounded-full text-white text-xs flex items-center justify-center font-bold"
                       title="アイコンをランダムに変更"
                     >
                       🎲

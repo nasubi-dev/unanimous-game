@@ -102,7 +102,7 @@ export function RoundDisplay({
                 "誰か"}
               さんが
             </div>
-            <div className="text-2xl font-bold text-blue-600 animate-pulse">
+            <div className="text-2xl font-bold text-violet-600 animate-pulse">
               お題を考え中...
             </div>
             <div className="text-sm text-gray-500">しばらくお待ちください</div>
@@ -124,7 +124,7 @@ export function RoundDisplay({
               <AnimatedButton
                 onClick={handleUseAppTopic}
                 size="sm"
-                className="w-[300px] text-sm border-2 border-blue-200 hover:border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 transition-all duration-200 focus:ring-blue-300"
+                className="w-[300px] text-sm border-2 border-violet-200 hover:border-violet-300 bg-violet-50 hover:bg-violet-100 text-violet-700 transition-all duration-200 focus:ring-violet-300"
               >
                 🎲 アプリ内のお題を使う
               </AnimatedButton>

@@ -15,7 +15,7 @@ export const Footer: React.FC = () => {
               href="https://iconbu.com/info" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 underline"
+              className="text-violet-600 hover:text-violet-800 underline"
             >
               フリーペンシル様
             </a>
@@ -24,7 +24,7 @@ export const Footer: React.FC = () => {
         </div>
         
         <div className="text-xs text-gray-400">
-          <p>全員一致ゲーム - みんなで楽しむオンラインパーティーゲーム</p>
+          <p>全員一致ゲーム</p>
         </div>
       </div>
     </footer>
