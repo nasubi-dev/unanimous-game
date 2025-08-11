@@ -5,10 +5,10 @@ interface HowToPlayModalProps {
 export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
   return (
     <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-primary-bg rounded-lg p-6 max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white border-2 border-gray-300 rounded-lg p-6 max-w-2xl mx-4 max-h-[90vh] overflow-y-auto shadow-lg">
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-primary-text">遊び方</h2>
+          <h2 className="text-2xl font-bold text-gray-800">遊び方</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
@@ -19,7 +19,7 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
         </div>
 
         {/* コンテンツ */}
-        <div className="space-y-4 text-primary-text">
+        <div className="space-y-4 text-gray-700">
           <section>
             <h3 className="text-lg font-semibold mb-2">ゲームの目的</h3>
             <p>全員一致ゲームは、参加者全員が同じ回答をすることを目指すゲームです。</p>
