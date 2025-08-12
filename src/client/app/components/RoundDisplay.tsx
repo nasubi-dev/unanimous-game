@@ -92,6 +92,18 @@ export function RoundDisplay({
 
   return (
     <>
+      {/* ラウンド数表示 */}
+      <div className="text-center mb-4">
+        <div className="inline-block bg-violet-100 px-4 py-2 rounded-full">
+          <span className="text-violet-700 font-semibold">
+            Round {state.rounds.length}
+            {state.settings?.maxRounds && (
+              <span className="text-violet-500 ml-1">/ {state.settings.maxRounds}</span>
+            )}
+          </span>
+        </div>
+      </div>
+
       {/* お題考案者以外への待機画面 */}
       {currentRound &&
         !currentRound.topic &&
@@ -315,14 +327,20 @@ export function RoundDisplay({
         currentRound &&
         currentRound.result === "opened" &&
         currentRound.unanimous !== null &&
+        // 上限ラウンド数に達していない場合のみ表示
+        (!state.settings?.maxRounds || state.rounds.length < state.settings.maxRounds) &&
         isGM && (
           <GMControls
             answeredCount={0}
             totalCount={0}
             onOpenRound={async () => {}} // 使用しない
             onCreateRound={async () => {
-              await createRound(state.id, isGM);
-              setToast("新しいラウンドを開始しました");
+              try {
+                await createRound(state.id, isGM);
+                setToast("新しいラウンドを開始しました");
+              } catch (e) {
+                setToast("ラウンドを開始できません（上限に達しました）");
+              }
             }}
             showCreateButton={true}
           />

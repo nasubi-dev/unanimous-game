@@ -116,6 +116,59 @@ export function RoomSettings({ state, setState, setToast }: RoomSettingsProps) {
           </div>
         </div>
 
+        <div>
+          <label className="block text-base mb-1">最大ラウンド数</label>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-2 text-base">
+                <input
+                  type="radio"
+                  name="maxRounds"
+                  checked={!state.settings?.maxRounds}
+                  onChange={() => setState((s) => s ? ({ ...s, settings: { ...s.settings, maxRounds: undefined } }) : null)}
+                  disabled={!isGM}
+                />
+                <span>制限なし</span>
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-2 text-base">
+                <input
+                  type="radio"
+                  name="maxRounds"
+                  checked={!!state.settings?.maxRounds}
+                  onChange={() => setState((s) => s ? ({ ...s, settings: { ...s.settings, maxRounds: 5 } }) : null)}
+                  disabled={!isGM}
+                />
+                <span>制限あり</span>
+              </label>
+              {state.settings?.maxRounds && (
+                <select
+                  value={state.settings.maxRounds}
+                  onChange={(e) =>
+                    setState((s) => s ? ({
+                      ...s,
+                      settings: {
+                        ...s.settings,
+                        maxRounds: parseInt(e.target.value) || 5,
+                      },
+                    }) : null)
+                  }
+                  className="border rounded p-3 w-20 text-base"
+                  disabled={!isGM}
+                >
+                  {Array.from({ length: 20 }, (_, i) => i + 1).map(num => (
+                    <option key={num} value={num}>{num}</option>
+                  ))}
+                </select>
+              )}
+              {state.settings?.maxRounds && (
+                <span className="text-base">ラウンドで終了</span>
+              )}
+            </div>
+          </div>
+        </div>
+
         {isGM && (
           <button
             onClick={handleSaveSettings}

@@ -151,6 +151,8 @@ export class RoomDurable {
           type: "roundCreated",
           round: newRound,
         } satisfies ServerMessage);
+
+  // もしmaxRoundsが1の場合は、最初の結果判定で敗北がありうるため、ここでは開始のみ
       }, 1500);
 
       return Response.json({ ok: true });
@@ -162,6 +164,11 @@ export class RoomDurable {
         return new Response("Room not initialized", { status: 404 });
       if (this.room.status !== "playing")
         return new Response("Game not started", { status: 409 });
+
+      // 上限ラウンド数チェック
+      if (this.room.settings.maxRounds && this.room.rounds.length >= this.room.settings.maxRounds) {
+        return new Response("Max rounds reached", { status: 409 });
+      }
 
       const body = (await request
         .json()
@@ -323,20 +330,21 @@ export class RoomDurable {
         unanimous: body.unanimous,
       } satisfies ServerMessage);
 
-      // 勝利条件を満たした場合はゲーム終了
-      if (winResult.isWin) {
+      // 勝利条件を満たした場合、または敗北した場合はゲーム終了
+      if (winResult.isWin || winResult.isDefeated) {
         this.room.status = "finished";
+        this.room.gameResult = winResult.isWin ? "win" : "lose";
         this.broadcast({
           type: "gameFinished",
           room: this.room,
-          winCondition: true,
+          gameResult: this.room.gameResult,
         } satisfies ServerMessage);
         console.log("Game finished:", winResult.reason);
       }
 
       return Response.json({
         ok: true,
-        gameFinished: winResult.isWin,
+        gameFinished: winResult.isWin || winResult.isDefeated,
         reason: winResult.reason,
       });
     }
@@ -466,6 +474,7 @@ export class RoomDurable {
       settings: { topicMode: "gm", winCondition: { type: "none" } },
       status: "waiting",
       rounds: [],
+  gameResult: undefined,
     } satisfies Room;
     return { roomId, gmId, gmToken };
   }
@@ -536,6 +545,15 @@ export class RoomDurable {
         out.winCondition = { type: "consecutive", value: (wc as any).value };
       }
     }
+    // maxRounds: undefined で無制限、数値(>=1)で設定
+    if (Object.prototype.hasOwnProperty.call(patch, "maxRounds")) {
+      const mr = (patch as any).maxRounds;
+      if (mr === undefined || mr === null || mr === 0) {
+        delete (out as any).maxRounds;
+      } else if (typeof mr === "number" && mr >= 1 && mr <= 100) {
+        (out as any).maxRounds = Math.floor(mr);
+      }
+    }
     return out;
   }
 
@@ -573,7 +591,32 @@ export class RoomDurable {
     return "";
   }
 
-  private checkWinCondition(): { isWin: boolean; reason?: string } {
+  private checkWinCondition(): { isWin: boolean; isDefeated?: boolean; reason?: string } {
+    if (!this.room) return { isWin: false };
+
+    const { winCondition, maxRounds } = this.room.settings;
+
+    // maxRoundsが設定されている場合の処理
+    if (maxRounds && this.room.rounds.length >= maxRounds) {
+      // まず勝利条件をチェック
+      const winResult = this.checkWinConditionInternal();
+      if (winResult.isWin) {
+        return winResult;
+      }
+      
+      // 勝利条件を満たしていない場合は敗北
+      return {
+        isWin: false,
+        isDefeated: true,
+        reason: `${maxRounds}ラウンド終了時点で勝利条件を達成できませんでした`,
+      };
+    }
+
+  // 通常の勝利条件チェック
+  return this.checkWinConditionInternal();
+  }
+
+  private checkWinConditionInternal(): { isWin: boolean; reason?: string } {
     if (!this.room) return { isWin: false };
 
     const { winCondition } = this.room.settings;

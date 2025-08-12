@@ -12,6 +12,11 @@ export function WinConditionDisplay({ state }: WinConditionDisplayProps) {
   return (
     <div className="max-w-md mx-auto text-center space-y-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
       <h3 className="text-sm font-medium text-yellow-800 mb-2">🎯 勝利条件</h3>
+      {state.settings.maxRounds && (
+        <div className="text-xs text-yellow-700">
+          最大ラウンド数: {state.settings.maxRounds}
+        </div>
+      )}
       {state.settings.winCondition.type === "count" && (
         <div className="text-yellow-700 flex justify-between items-center">
           <span>

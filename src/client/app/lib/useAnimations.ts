@@ -17,6 +17,8 @@ import {
   animateCardTap,
   animateHover,
   animateRevealAnswers,
+  animateVictoryConfetti,
+  animateDefeatShake,
 } from './animations';
 
 // 要素参照用のカスタムフック
@@ -87,6 +89,28 @@ export const useVictoryAnimation = () => {
   };
   
   return { ref, playVictoryEffect };
+};
+
+// 勝利紙吹雪（背面コンテナに対して実行）
+export const useVictoryConfetti = () => {
+  const ref = useAnimationRef<HTMLDivElement>();
+  const playConfetti = (durationSec?: number) => {
+    if (ref.current) {
+      return animateVictoryConfetti(ref.current, durationSec);
+    }
+  };
+  return { ref, playConfetti };
+};
+
+// 敗北シェイク
+export const useDefeatEffect = () => {
+  const ref = useAnimationRef<HTMLDivElement>();
+  const playDefeat = () => {
+    if (ref.current) {
+      return animateDefeatShake(ref.current);
+    }
+  };
+  return { ref, playDefeat };
 };
 
 // リストアイテムアニメーション用フック

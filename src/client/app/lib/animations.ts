@@ -97,6 +97,61 @@ export const animateVictoryEffect = (container: HTMLElement) => {
   return tl;
 };
 
+// 紙吹雪アニメーション（モーダル背面）
+export const animateVictoryConfetti = (container: HTMLElement, durationSec = 3) => {
+  const colors = ["#a78bfa", "#34d399", "#fbbf24", "#60a5fa", "#f472b6"]; // violet/green/amber/blue/pink
+  const width = container.clientWidth || window.innerWidth;
+  const height = container.clientHeight || window.innerHeight;
+  const count = Math.min(80, Math.max(40, Math.floor(width / 15))); // 画面幅で粒数調整
+
+  // 生成
+  const pieces: HTMLDivElement[] = [];
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement("div");
+    el.style.position = "absolute";
+    el.style.top = "-10px";
+    el.style.left = Math.random() * width + "px";
+    el.style.width = 6 + Math.random() * 6 + "px";
+    el.style.height = 10 + Math.random() * 10 + "px";
+    el.style.backgroundColor = colors[i % colors.length];
+    el.style.opacity = "0.9";
+    el.style.borderRadius = "2px";
+    el.style.willChange = "transform, opacity";
+    container.appendChild(el);
+    pieces.push(el);
+  }
+
+  // 落下アニメーション
+  const tl = gsap.timeline({ onComplete: () => {
+    pieces.forEach(p => p.remove());
+  }});
+
+  pieces.forEach((p) => {
+    const fallDuration = durationSec + Math.random() * 1.5;
+    const endY = height + 50 + Math.random() * 100;
+    const driftX = (Math.random() - 0.5) * 200;
+    const rotate = (Math.random() - 0.5) * 720;
+    tl.add(gsap.fromTo(
+      p,
+      { y: -20, x: parseFloat(p.style.left), rotation: 0, opacity: 1 },
+      { y: endY, x: "+=" + driftX, rotation: rotate, opacity: 0.9, duration: fallDuration, ease: "sine.in" }
+    ), 0);
+  });
+
+  return tl;
+};
+
+// 敗北シェイク（モーダル）
+export const animateDefeatShake = (element: HTMLElement) => {
+  const tl = gsap.timeline();
+  tl.to(element, { x: -6, duration: 0.05 })
+    .to(element, { x: 6, duration: 0.05 })
+    .to(element, { x: -4, duration: 0.05 })
+    .to(element, { x: 4, duration: 0.05 })
+    .to(element, { x: 0, duration: 0.06 });
+  return tl;
+};
+
 // 回答状況フィードバックアニメーション
 export const animateAnswerFeedback = (
   element: HTMLElement,

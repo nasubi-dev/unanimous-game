@@ -1,5 +1,5 @@
 import type { Room } from "../../../shared/types";
-import { useVictoryAnimation } from "../lib/useAnimations";
+import { useVictoryAnimation, useVictoryConfetti, useDefeatEffect } from "../lib/useAnimations";
 import { useEffect, useState } from "react";
 import { AnimatedButton } from "./AnimatedButton";
 
@@ -17,6 +17,8 @@ export function GameFinished({
   onPlayAgain,
 }: GameFinishedProps) {
   const { ref, playVictoryEffect } = useVictoryAnimation();
+  const { ref: bgRef, playConfetti } = useVictoryConfetti();
+  const { ref: modalRef, playDefeat } = useDefeatEffect();
   const [animationPlayed, setAnimationPlayed] = useState(false);
 
   console.log("GameFinished render:", {
@@ -34,23 +36,30 @@ export function GameFinished({
       animationPlayed,
     });
 
-    if (
-      (state.status as any) === "finished" &&
-      playVictoryEffect &&
-      !animationPlayed
-    ) {
-      console.log("Playing victory animation!");
-      playVictoryEffect();
+    if ((state.status as any) !== "finished" || animationPlayed) return;
+    const result = state.gameResult;
+    if (result === "win") {
+      playVictoryEffect?.();
+      playConfetti?.(3);
+      setAnimationPlayed(true);
+    } else if (result === "lose") {
+      playVictoryEffect?.(); // 通常の登場アニメ
+      // 少し遅らせてシェイク
+      setTimeout(() => playDefeat?.(), 250);
       setAnimationPlayed(true);
     }
-  }, [state.status, playVictoryEffect, animationPlayed]);
+  }, [state.status, state.gameResult, playVictoryEffect, playConfetti, playDefeat, animationPlayed]);
 
   if ((state.status as any) !== "finished") {
     return null;
   }
 
+  const isWin = state.gameResult === "win";
+
   return (
     <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
+      {/* 背面紙吹雪コンテナ */}
+      <div ref={bgRef} className="absolute inset-0 overflow-hidden pointer-events-none" />
       <div
         ref={ref}
         className="bg-white rounded-xl shadow-2xl p-8 mx-4 max-w-md w-full text-center"
@@ -59,8 +68,8 @@ export function GameFinished({
           transform: "translateY(100px)",
         }}
       >
-        <h3 className="text-3xl font-bold text-green-700 mb-4">
-          🎉 ゲーム終了！
+        <h3 ref={modalRef} className={`text-3xl font-bold mb-4 ${isWin ? "text-green-700" : "text-red-700"}`}>
+          {isWin ? "🎉 ゲームクリア！" : "クリアならず..."}
         </h3>
         <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-4 mb-6">
           <p>全 {state.rounds.length} ラウンド実施</p>

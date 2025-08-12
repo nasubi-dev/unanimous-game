@@ -22,7 +22,9 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
         <div className="space-y-4 text-gray-700">
           <section>
             <h3 className="text-lg font-semibold mb-2">ゲームの目的</h3>
-            <p>全員一致ゲームは、参加者全員が同じ回答をすることを目指すゲームです。</p>
+            <p>
+              全員一致ゲームは、参加者全員が同じ回答をすることを目指すゲームです。
+            </p>
           </section>
 
           <section>
@@ -40,9 +42,18 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
             <h3 className="text-lg font-semibold mb-2">勝利条件</h3>
             <p>ゲーム開始前に設定した条件を満たすと勝利です：</p>
             <ul className="list-disc list-inside space-y-1 mt-2">
-              <li><strong>回数指定：</strong> 指定回数の一致を達成</li>
-              <li><strong>連続指定：</strong> 指定回数の連続一致を達成</li>
-              <li><strong>条件なし：</strong> 自由に楽しむモード</li>
+              <li>
+                <strong>回数指定：</strong> 指定回数の一致を達成
+              </li>
+              <li>
+                <strong>連続指定：</strong> 指定回数の連続一致を達成
+              </li>
+              <li>
+                <strong>条件なし：</strong> 自由に楽しむモード
+              </li>
+              <li>
+                <strong>最大ラウンド数：</strong> 任意で上限を設定できます。到達時点で勝利条件が未達なら敗北です。
+              </li>
             </ul>
           </section>
 

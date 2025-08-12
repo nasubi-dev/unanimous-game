@@ -210,10 +210,16 @@ export default function Room() {
           });
         }
         if (msg.type === "gameFinished") {
-          console.log("Game finished:", msg.winCondition);
+          console.log("Game finished:", msg.gameResult);
           console.log("Game finished room status:", msg.room.status);
           setState(msg.room);
-          setToast("🎉 ゲーム終了！勝利条件を達成しました！");
+          if (msg.gameResult === "lose") {
+            setToast("😢 ゲーム終了。勝利条件を達成できませんでした");
+          } else if (msg.gameResult === "win") {
+            setToast("🎉 ゲーム終了！勝利条件を達成しました！");
+          } else {
+            setToast("ゲーム終了");
+          }
         }
         if (msg.type === "settingsUpdated") {
           console.log("Settings updated:", msg.settings);

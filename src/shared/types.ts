@@ -11,6 +11,7 @@ export type RoomSettings = {
     | { type: "count"; value: number }
     | { type: "consecutive"; value: number }
     | { type: "none" };
+  maxRounds?: number; // n回ラウンドで終了設定
 };
 
 export type Answer = {
@@ -35,6 +36,7 @@ export type Room = {
   settings: RoomSettings;
   status: "waiting" | "playing" | "finished";
   rounds: Round[];
+  gameResult?: "win" | "lose"; // 終了時の結果
 };
 
 // --- WS/Event types (minimal for first step) ---
@@ -57,7 +59,7 @@ export type ServerMessage =
     }
   | { type: "roundOpened"; roundId: string; answers: Answer[] }
   | { type: "resultJudged"; roundId: string; unanimous: boolean }
-  | { type: "gameFinished"; room: Room; winCondition: boolean }
+  | { type: "gameFinished"; room: Room; gameResult: "win" | "lose" }
   | { type: "roomReset"; message: string }
   | { type: "settingsUpdated"; settings: RoomSettings }
   | { type: "error"; message: string };

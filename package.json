@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --ip 192.168.10.2",
-    "dev:local": "wrangler dev",
+  "dev": "wrangler dev --ip 0.0.0.0",
+  "dev:local": "wrangler dev",
+  "dev:lan": "wrangler dev --ip 0.0.0.0",
     "dev:client": "npm --prefix src/client run dev",
     "build:client": "npm --prefix src/client ci && npm --prefix src/client run build",
     "build:production": "npm --prefix src/client install && npm --prefix src/client run build",
