@@ -11,6 +11,10 @@ binding = "ASSETS"
 name = "ROOM_DURABLE"
 class_name = "RoomDurable"
 
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "unanimous-game-metrics"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["RoomDurable"]

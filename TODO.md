@@ -1,43 +1,75 @@
-## 計画（次の改善）
+# Cloudflareアナリティクス導入計画（最小限実装）
 
-目的: 勝敗表現を分かりやすくし、終了演出（勝利クラッカー／敗北エフェクト）を実装する。
+## 目的
+プレイヤー数、ルーム数、ラウンド数の累計・合計データをCloudflare Analytics Engineで収集
 
-### 要件（必要最小限）
-1) サーバ状態に「ゲーム結果（win/lose/none）」を明示で保持し、終了メッセージにも含める
-- ルーム状態に `gameResult`（'win'|'lose'|undefined）を追加
-- `gameFinished` メッセージで `defeated` に加えて `gameResult` も送る
+## 収集するメトリクス
+- **player_joined**: プレイヤー参加回数（累計プレイヤー数）
+- **room_created**: ルーム作成回数（累計ルーム数）  
+- **round_started**: ラウンド開始回数（累計ラウンド数）
 
-2) 勝利時のクラッカー演出（モーダルの背面で紙吹雪）
-- モーダル背面で数秒間の紙吹雪アニメーション
-- パフォーマンスに配慮（GSAPタイムライン／Canvas or DOM 粒子）
+## 実装方針
+1. **Cloudflare Analytics Engine**のみ使用（クライアント管理画面なし）
+2. **Durable Object**からメトリクス送信のみ
+3. **CloudflareダッシュボードWeb UI**でデータ閲覧
 
-3) 敗北時の演出
-- モーダルにあわせた赤系のフェード／軽いシェイク演出
+## 関連ファイル（最小限）
 
-4) UIの利用箇所を `gameResult` ベースに統一
-- 終了トースト文言、モーダル見出し／色切替を `gameResult` で判定
+### サーバーサイド
+- `wrangler.toml` - Analytics Engineバインディング追加
+- `src/server/do/RoomDurable.ts` - メトリクス送信処理追加
 
-5) ドキュメント更新
-- 仕様（勝敗判定の保持と演出）を追記
+### 型定義
+- `src/shared/types.ts` - Env型にAnalytics Engineバインディング追加
 
-### 関連ファイル（変更候補）
-- 共有型
-  - `src/shared/types.ts`
-- サーバ／DO
-  - `src/server/do/RoomDurable.ts`
-- クライアント・ルーム画面
-  - `src/client/app/routes/room.tsx`
-  - `src/client/app/components/GameFinished.tsx`
-  - `src/client/app/components/WinConditionDisplay.tsx`（表示微調整が必要なら）
-- アニメーション
-  - `src/client/app/lib/animations.ts`
-  - `src/client/app/lib/useAnimations.ts`
-- ドキュメント
-  - `docs/全員一致ゲーム.md`
-  - `docs/実装手順.md`
+## 実装タスク
 
-### 受入れ基準（Doneの定義）
-- 勝利時は紙吹雪がモーダル背面で再生されること
-- 敗北時は赤系の演出（シェイク or フェード）が再生されること
-- ルーム状態に `gameResult` が存在し、UIはこの値で勝敗表示を切り替えること
-- docs に仕様差分が反映されていること
+### 1. インフラ設定
+- wrangler.tomlにAnalytics Engineバインディング追加
+- Env型にAnalyticsEngineバインディング追加
+
+### 2. メトリクス送信処理
+- ルーム作成時に`room_created`メトリクス送信
+- プレイヤー参加時に`player_joined`メトリクス送信  
+- ラウンド開始時に`round_started`メトリクス送信
+
+## 手作業での設定・確認方法
+
+### Analytics Engine有効化（Cloudflareダッシュボード）
+1. Cloudflareダッシュボード > Workers & Pages > unanimous-game
+2. Settings > Bindings > Analytics Engine
+3. 新しいバインディング追加: 
+   - Variable name: `ANALYTICS`
+   - Dataset: `unanimous-game-metrics`
+
+### データ閲覧方法
+1. Cloudflareダッシュボード > Analytics & Logs > Workers Analytics
+2. または GraphQL API直接クエリ:
+```graphql
+{
+  viewer {
+    accounts(filter: {accountTag: "YOUR_ACCOUNT_ID"}) {
+      analyticsEngineMetrics(
+        filter: {
+          dataset: "unanimous-game-metrics"
+        }
+      ) {
+        sum {
+          sampleInterval
+          blob1
+        }
+      }
+    }
+  }
+}
+```
+
+### デプロイ後の確認
+1. `wrangler tail` でログ確認
+2. Analytics Engineにデータが送信されているか確認
+3. 数分後にCloudflareダッシュボードでメトリクス表示確認
+
+## 制約
+- Analytics Engine無料枠: 100,000 data points/月
+- データ表示まで数分のラグあり
+- 既存機能への影響なし

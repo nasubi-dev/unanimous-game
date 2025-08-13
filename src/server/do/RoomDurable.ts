@@ -17,6 +17,7 @@ import type {
 export interface Env {
   ROOM_DURABLE: DurableObjectNamespace;
   ASSETS: Fetcher;
+  ANALYTICS: AnalyticsEngineDataset;
 }
 
 export class RoomDurable {
@@ -35,6 +36,19 @@ export class RoomDurable {
     this.env = env;
   }
 
+  // Analytics用のヘルパーメソッド
+  private async sendAnalyticsEvent(eventType: string, data?: any) {
+    try {
+      await this.env.ANALYTICS.writeDataPoint({
+        blobs: [eventType, this.room?.id || "unknown"],
+        doubles: [Date.now()],
+        indexes: [eventType]
+      });
+    } catch (error) {
+      console.error(`Analytics event failed for ${eventType}:`, error);
+    }
+  }
+
   // DO エントリポイント
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -50,6 +64,10 @@ export class RoomDurable {
       const gmIcon = body.icon !== undefined ? body.icon : 1;
       const { roomId, gmId, gmToken } = this.initRoom(providedId);
       this.gmToken = gmToken;
+      
+      // Analytics: ルーム作成イベント送信
+      await this.sendAnalyticsEvent("room_created");
+      
       // GM をユーザーとして登録
       let gmUserId = "";
       if (gmName) {
@@ -70,6 +88,10 @@ export class RoomDurable {
         return new Response("Room not initialized", { status: 404 });
       if (!name) return new Response("name required", { status: 400 });
       const user = this.addUser(name, icon);
+      
+      // Analytics: プレイヤー参加イベント送信
+      await this.sendAnalyticsEvent("player_joined");
+      
       this.broadcast({ type: "userJoined", user } satisfies ServerMessage);
       return Response.json({ userId: user.id });
     }
@@ -189,6 +211,10 @@ export class RoomDurable {
       };
 
       this.room.rounds.push(newRound);
+      
+      // Analytics: ラウンド開始イベント送信
+      await this.sendAnalyticsEvent("round_started");
+      
       this.broadcast({
         type: "roundCreated",
         round: newRound,
