@@ -1,3 +1,6 @@
 .wrangler
 node_modules
 src/client/build
+.DS_Store
+.env
+.env.local
