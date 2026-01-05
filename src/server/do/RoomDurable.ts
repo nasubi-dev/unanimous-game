@@ -156,7 +156,10 @@ export class RoomDurable {
 
         // 自動で最初のラウンドを作成
         const roundId = crypto.randomUUID();
+        console.log("Game starting. Users:", this.room!.users.map(u => ({ id: u.id, name: u.name, isGM: u.isGM })));
+        console.log("TopicMode:", this.room!.settings.topicMode);
         const setterId = this.getNextTopicSetter();
+        console.log("Selected setterId:", setterId);
 
         const newRound: Round = {
           id: roundId,
