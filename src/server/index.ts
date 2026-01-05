@@ -204,11 +204,14 @@ app.post("/api/rooms/:id/gm-return-home", async (c) => {
   const idParam = c.req.param("id");
   const id = c.env.ROOM_DURABLE.idFromName(idParam);
   const stub = c.env.ROOM_DURABLE.get(id);
-  const res = await stub.fetch(new URL("/gm-return-home", "http://do").toString(), {
-    method: "POST",
-    body: await c.req.raw.text(),
-    headers: Object.fromEntries(c.req.raw.headers.entries()),
-  });
+  const res = await stub.fetch(
+    new URL("/gm-return-home", "http://do").toString(),
+    {
+      method: "POST",
+      body: await c.req.raw.text(),
+      headers: Object.fromEntries(c.req.raw.headers.entries()),
+    }
+  );
   return new Response(await res.text(), {
     status: res.status,
     headers: { "content-type": "application/json" },
