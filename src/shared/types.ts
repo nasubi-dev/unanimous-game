@@ -62,6 +62,7 @@ export type ServerMessage =
   | { type: "gameFinished"; room: Room; gameResult: "win" | "lose" }
   | { type: "roomReset"; message: string }
   | { type: "settingsUpdated"; settings: RoomSettings }
+  | { type: "gmReturnedHome" }
   | { type: "error"; message: string };
 
 export type ClientMessage =

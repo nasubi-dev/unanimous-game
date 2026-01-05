@@ -254,6 +254,24 @@ export async function resetRoom(
   return res.json();
 }
 
+export async function gmReturnHome(
+  roomId: string,
+  gmToken: string
+): Promise<{ ok: true }> {
+  const res = await fetch(`${BASE}/api/rooms/${roomId}/gm-return-home`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${gmToken}`,
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, "gm return home failed", text);
+  }
+  return res.json();
+}
+
 export function leaveRoom(roomId: string, userId: string): void {
   const ws = connectWs(roomId);
   ws.onopen = () => {

@@ -52,6 +52,7 @@ export class RoomDurable {
   // DO エントリポイント
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    console.log("RoomDurable fetch:", request.method, url.pathname);
     // HTTP: /create, /join, /state
     if (request.method === "POST" && url.pathname.endsWith("/create")) {
       const body = (await request.json().catch(() => ({}))) as {
@@ -440,6 +441,36 @@ export class RoomDurable {
       } satisfies ServerMessage);
 
       console.log("Game reset completed");
+      return Response.json({ ok: true });
+    }
+
+    // GMがトップに戻る（他のプレイヤーもリダイレクト）
+    if (request.method === "POST" && url.pathname.endsWith("/gm-return-home")) {
+      if (!this.room)
+        return new Response("Room not initialized", { status: 404 });
+
+      // GM権限チェック
+      const authHeader = request.headers.get("authorization") || "";
+      const xGmToken = request.headers.get("x-gm-token") || "";
+
+      let providedToken = "";
+      if (authHeader.startsWith("Bearer ")) {
+        providedToken = authHeader.substring(7);
+      } else if (xGmToken) {
+        providedToken = xGmToken;
+      }
+
+      if (!providedToken || providedToken !== this.gmToken) {
+        return new Response("forbidden", { status: 403 });
+      }
+
+      console.log("GM returning home, broadcasting to all players...");
+
+      // 全員にトップに戻るよう指示
+      this.broadcast({
+        type: "gmReturnedHome",
+      } satisfies ServerMessage);
+
       return Response.json({ ok: true });
     }
 

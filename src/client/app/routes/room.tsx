@@ -9,6 +9,7 @@ import {
   startGame,
   resetRoom,
   leaveRoom,
+  gmReturnHome,
 } from "../lib/api";
 import type { Room, ServerMessage } from "../../../shared/types";
 import {
@@ -235,6 +236,14 @@ export default function Room() {
             window.location.reload();
           }, 2000);
         }
+        if (msg.type === "gmReturnedHome") {
+          console.log("GM returned home, redirecting to top page...");
+          setToast("GMがトップに戻りました");
+          // 1秒後にトップページにリダイレクト
+          setTimeout(() => {
+            window.location.href = "/";
+          }, 1000);
+        }
         if (msg.type === "error") {
           console.error("WebSocket error:", msg.message);
           setToast(`エラー: ${msg.message}`);
@@ -321,8 +330,23 @@ export default function Room() {
     }
   };
 
-  const handleGoHome = () => {
-    window.location.href = "/";
+  const handleGoHome = async () => {
+    const token = gmTokenStore.load(id);
+    if (!token) {
+      setToast("GM権限がありません");
+      return;
+    }
+
+    try {
+      await gmReturnHome(id, token);
+      setToast("トップに戻ります...");
+    } catch (e) {
+      if (e instanceof ApiError && e.body) {
+        setToast(`処理に失敗しました: ${e.body}`);
+      } else {
+        setToast("処理に失敗しました");
+      }
+    }
   };
 
   const handlePlayAgain = async () => {

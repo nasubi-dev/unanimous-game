@@ -2,6 +2,7 @@ import type { Room } from "../../../shared/types";
 import { useVictoryAnimation, useVictoryConfetti, useDefeatEffect } from "../lib/useAnimations";
 import { useEffect, useState } from "react";
 import { AnimatedButton } from "./AnimatedButton";
+import { gmTokenStore } from "../lib/api";
 
 interface GameFinishedProps {
   state: Room;
@@ -55,6 +56,7 @@ export function GameFinished({
   }
 
   const isWin = state.gameResult === "win";
+  const isGM = gmTokenStore.load(state.id);
 
   return (
     <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
@@ -78,23 +80,30 @@ export function GameFinished({
             {state.rounds.filter((r) => r.unanimous === true).length} 回
           </p>
         </div>
-        <div className="flex gap-3">
-          <AnimatedButton
-            onClick={onGoHome}
-            variant="primary"
-            className="flex-1"
-          >
-            トップに戻る
-          </AnimatedButton>
+        
+        {isGM ? (
+          <div className="flex gap-3">
+            <AnimatedButton
+              onClick={onGoHome}
+              variant="primary"
+              className="flex-1"
+            >
+              トップに戻る
+            </AnimatedButton>
 
-          <AnimatedButton
-            onClick={onPlayAgain}
-            variant="success"
-            className="flex-1"
-          >
-            もう一度
-          </AnimatedButton>
-        </div>
+            <AnimatedButton
+              onClick={onPlayAgain}
+              variant="success"
+              className="flex-1"
+            >
+              もう一度
+            </AnimatedButton>
+          </div>
+        ) : (
+          <div className="text-gray-600 text-base">
+            GMの選択を待っています...
+          </div>
+        )}
       </div>
     </div>
   );
