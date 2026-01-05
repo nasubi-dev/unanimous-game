@@ -31,6 +31,7 @@ export default function Home() {
   const [name, setName] = useState("");
   const [icon, setIcon] = useState<string | number>(1);
   const [isSpecialName, setIsSpecialName] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => {
@@ -123,6 +124,16 @@ export default function Home() {
       <main className="flex-1 w-full max-w-[800px] mx-auto px-4 py-6 flex flex-col justify-center">
         <div className="flex flex-col items-center gap-16">
           <div className="w-full space-y-6 px-4 max-w-[600px]">
+            {/* QR表示ボタン */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowQRModal(true)}
+                className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-md"
+              >
+                QRコード
+              </button>
+            </div>
+
             <nav className="rounded-3xl border border-gray-200 p-6 space-y-4">
               <p className="leading-7 text-lg text-gray-700 text-center">
                 プレイヤー情報の登録
@@ -172,6 +183,22 @@ export default function Home() {
         </div>
       </main>
       <Footer />
+
+      {/* QR画像オーバーレイ */}
+      {showQRModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.8)" }}
+          onClick={() => setShowQRModal(false)}
+        >
+          <img
+            src="/qr.png"
+            alt="QR Code"
+            className="cursor-pointer"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
