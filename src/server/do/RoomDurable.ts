@@ -42,7 +42,7 @@ export class RoomDurable {
       await this.env.ANALYTICS.writeDataPoint({
         blobs: [eventType, this.room?.id || "unknown"],
         doubles: [Date.now()],
-        indexes: [eventType]
+        indexes: [eventType],
       });
     } catch (error) {
       console.error(`Analytics event failed for ${eventType}:`, error);
@@ -64,10 +64,10 @@ export class RoomDurable {
       const gmIcon = body.icon !== undefined ? body.icon : 1;
       const { roomId, gmId, gmToken } = this.initRoom(providedId);
       this.gmToken = gmToken;
-      
+
       // Analytics: ルーム作成イベント送信
       await this.sendAnalyticsEvent("room_created");
-      
+
       // GM をユーザーとして登録
       let gmUserId = "";
       if (gmName) {
@@ -88,10 +88,10 @@ export class RoomDurable {
         return new Response("Room not initialized", { status: 404 });
       if (!name) return new Response("name required", { status: 400 });
       const user = this.addUser(name, icon);
-      
+
       // Analytics: プレイヤー参加イベント送信
       await this.sendAnalyticsEvent("player_joined");
-      
+
       this.broadcast({ type: "userJoined", user } satisfies ServerMessage);
       return Response.json({ userId: user.id });
     }
@@ -174,7 +174,7 @@ export class RoomDurable {
           round: newRound,
         } satisfies ServerMessage);
 
-  // もしmaxRoundsが1の場合は、最初の結果判定で敗北がありうるため、ここでは開始のみ
+        // もしmaxRoundsが1の場合は、最初の結果判定で敗北がありうるため、ここでは開始のみ
       }, 1500);
 
       return Response.json({ ok: true });
@@ -188,7 +188,10 @@ export class RoomDurable {
         return new Response("Game not started", { status: 409 });
 
       // 上限ラウンド数チェック
-      if (this.room.settings.maxRounds && this.room.rounds.length >= this.room.settings.maxRounds) {
+      if (
+        this.room.settings.maxRounds &&
+        this.room.rounds.length >= this.room.settings.maxRounds
+      ) {
         return new Response("Max rounds reached", { status: 409 });
       }
 
@@ -211,10 +214,10 @@ export class RoomDurable {
       };
 
       this.room.rounds.push(newRound);
-      
+
       // Analytics: ラウンド開始イベント送信
       await this.sendAnalyticsEvent("round_started");
-      
+
       this.broadcast({
         type: "roundCreated",
         round: newRound,
@@ -497,10 +500,10 @@ export class RoomDurable {
       id: roomId,
       gmId,
       users: [],
-      settings: { topicMode: "gm", winCondition: { type: "none" } },
+      settings: { topicMode: "all", winCondition: { type: "count", value: 1 } },
       status: "waiting",
       rounds: [],
-  gameResult: undefined,
+      gameResult: undefined,
     } satisfies Room;
     return { roomId, gmId, gmToken };
   }
@@ -617,7 +620,11 @@ export class RoomDurable {
     return "";
   }
 
-  private checkWinCondition(): { isWin: boolean; isDefeated?: boolean; reason?: string } {
+  private checkWinCondition(): {
+    isWin: boolean;
+    isDefeated?: boolean;
+    reason?: string;
+  } {
     if (!this.room) return { isWin: false };
 
     const { winCondition, maxRounds } = this.room.settings;
@@ -629,7 +636,7 @@ export class RoomDurable {
       if (winResult.isWin) {
         return winResult;
       }
-      
+
       // 勝利条件を満たしていない場合は敗北
       return {
         isWin: false,
@@ -638,8 +645,8 @@ export class RoomDurable {
       };
     }
 
-  // 通常の勝利条件チェック
-  return this.checkWinConditionInternal();
+    // 通常の勝利条件チェック
+    return this.checkWinConditionInternal();
   }
 
   private checkWinConditionInternal(): { isWin: boolean; reason?: string } {
