@@ -387,15 +387,21 @@ export default function Room() {
 
           {/* ゲーム開始ボタン */}
           {isGM && (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-6 flex flex-col items-center gap-2">
               <AnimatedButton
                 onClick={handleStartGame}
                 variant="success"
                 size="lg"
                 className="font-medium px-6"
+                disabled={state.users.length < 2}
               >
                 ゲーム開始
               </AnimatedButton>
+              {state.users.length < 2 && (
+                <p className="text-sm text-red-500">
+                  ゲームを開始するには2人以上のプレイヤーが必要です
+                </p>
+              )}
             </div>
           )}
         </>

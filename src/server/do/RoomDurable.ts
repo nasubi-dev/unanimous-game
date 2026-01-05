@@ -141,6 +141,10 @@ export class RoomDurable {
       if (!body?.gmToken || body.gmToken !== this.gmToken)
         return new Response("forbidden", { status: 403 });
 
+      // プレイヤー数チェック（2人以上必要）
+      if (this.room.users.length < 2)
+        return new Response("At least 2 players required", { status: 400 });
+
       // まずカウントダウン開始をブロードキャスト
       this.broadcast({
         type: "gameCountdownStarted",
