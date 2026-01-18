@@ -43,7 +43,10 @@ export class RoomDurable {
   }
 
   // タイマー管理ヘルパー
-  private setManagedTimeout(callback: () => void, delay: number): ReturnType<typeof setTimeout> {
+  private setManagedTimeout(
+    callback: () => void,
+    delay: number,
+  ): ReturnType<typeof setTimeout> {
     const timer = setTimeout(() => {
       this.activeTimers.delete(timer);
       callback();
@@ -180,7 +183,7 @@ export class RoomDurable {
         return new Response("forbidden", { status: 403 });
       const next = this.applySettingsPatch(
         this.room.settings,
-        body.settings || {}
+        body.settings || {},
       );
       this.room.settings = next;
       // settingsUpdatedイベントと全状態の両方を送信
@@ -227,7 +230,7 @@ export class RoomDurable {
             id: u.id,
             name: u.name,
             isGM: u.isGM,
-          }))
+          })),
         );
         console.log("TopicMode:", this.room!.settings.topicMode);
         const setterId = this.getNextTopicSetter();
@@ -544,7 +547,7 @@ export class RoomDurable {
       const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
       server.accept();
       console.log(
-        `New WebSocket connection. Total connections: ${this.sockets.size + 1}`
+        `New WebSocket connection. Total connections: ${this.sockets.size + 1}`,
       );
 
       // アイドルタイムアウトをリセット
@@ -555,7 +558,7 @@ export class RoomDurable {
         console.log(
           `WebSocket connection closed. Total connections: ${
             this.sockets.size - 1
-          }`
+          }`,
         );
         this.sockets.delete(server);
         this.handleUserDisconnect(server);
@@ -638,7 +641,7 @@ export class RoomDurable {
             JSON.stringify({
               type: "state",
               room: this.room,
-            } satisfies ServerMessage)
+            } satisfies ServerMessage),
           );
       }
       if (msg.type === "join") {
@@ -657,14 +660,14 @@ export class RoomDurable {
         JSON.stringify({
           type: "error",
           message: "bad message",
-        } satisfies ServerMessage)
+        } satisfies ServerMessage),
       );
     }
   }
 
   private applySettingsPatch(
     current: RoomSettings,
-    patch: Partial<RoomSettings>
+    patch: Partial<RoomSettings>,
   ): RoomSettings {
     const out: RoomSettings = structuredClone(current);
     if (patch.topicMode) {
@@ -727,7 +730,7 @@ export class RoomDurable {
           allUsers[nextUserIndex]?.id
         }, userName=${allUsers[nextUserIndex]?.name}, isGM=${
           allUsers[nextUserIndex]?.isGM
-        }`
+        }`,
       );
       return allUsers[nextUserIndex]?.id || "";
     }
@@ -775,7 +778,7 @@ export class RoomDurable {
 
     // 全員一致したラウンドのみを対象とする
     const unanimousRounds = this.room.rounds.filter(
-      (r) => r.unanimous === true
+      (r) => r.unanimous === true,
     );
 
     if (winCondition.type === "count") {
@@ -853,7 +856,7 @@ export class RoomDurable {
     // GMの場合は削除しない
     if (user.isGM) {
       console.log(
-        `GM ${user.name} attempted to leave, but GMs cannot be removed`
+        `GM ${user.name} attempted to leave, but GMs cannot be removed`,
       );
       return;
     }
