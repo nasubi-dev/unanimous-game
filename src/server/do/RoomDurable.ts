@@ -31,9 +31,73 @@ export class RoomDurable {
   private userSocketMap = new Map<string, WebSocket>(); // userId -> WebSocket
   private socketUserMap = new Map<WebSocket, string>(); // WebSocket -> userId
 
+  // タイマー管理
+  private activeTimers = new Set<ReturnType<typeof setTimeout>>();
+  private idleTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30分
+  private readonly EMPTY_ROOM_CLEANUP_MS = 5 * 60 * 1000; // 5分
+
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
+  }
+
+  // タイマー管理ヘルパー
+  private setManagedTimeout(callback: () => void, delay: number): ReturnType<typeof setTimeout> {
+    const timer = setTimeout(() => {
+      this.activeTimers.delete(timer);
+      callback();
+    }, delay);
+    this.activeTimers.add(timer);
+    return timer;
+  }
+
+  private clearAllTimers() {
+    for (const timer of this.activeTimers) {
+      clearTimeout(timer);
+    }
+    this.activeTimers.clear();
+    if (this.idleTimeoutTimer) {
+      clearTimeout(this.idleTimeoutTimer);
+      this.idleTimeoutTimer = null;
+    }
+  }
+
+  // アイドルタイムアウトをリセット
+  private resetIdleTimeout() {
+    if (this.idleTimeoutTimer) {
+      clearTimeout(this.idleTimeoutTimer);
+    }
+    this.idleTimeoutTimer = setTimeout(() => {
+      console.log("Room idle timeout reached, cleaning up...");
+      this.cleanupRoom();
+    }, this.IDLE_TIMEOUT_MS);
+  }
+
+  // ルームのクリーンアップ
+  private cleanupRoom() {
+    console.log("Cleaning up room...");
+
+    // 全WebSocket接続を閉じる
+    for (const ws of this.sockets) {
+      try {
+        ws.close(1000, "Room closed due to inactivity");
+      } catch (e) {
+        console.error("Error closing WebSocket:", e);
+      }
+    }
+    this.sockets.clear();
+    this.userSocketMap.clear();
+    this.socketUserMap.clear();
+
+    // タイマーをクリア
+    this.clearAllTimers();
+
+    // ルーム状態をクリア
+    this.room = null;
+    this.gmToken = null;
+
+    console.log("Room cleanup completed");
   }
 
   // Analytics用のヘルパーメソッド
@@ -152,7 +216,7 @@ export class RoomDurable {
       } satisfies ServerMessage);
 
       // 1.5秒後に実際のゲーム開始処理を実行
-      setTimeout(() => {
+      this.setManagedTimeout(() => {
         this.room!.status = "playing";
 
         // 自動で最初のラウンドを作成
@@ -483,6 +547,9 @@ export class RoomDurable {
         `New WebSocket connection. Total connections: ${this.sockets.size + 1}`
       );
 
+      // アイドルタイムアウトをリセット
+      this.resetIdleTimeout();
+
       this.sockets.add(server);
       server.addEventListener("close", () => {
         console.log(
@@ -560,6 +627,9 @@ export class RoomDurable {
   }
 
   private onMessage(ws: WebSocket, ev: MessageEvent) {
+    // アイドルタイムアウトをリセット
+    this.resetIdleTimeout();
+
     try {
       const msg = JSON.parse(String(ev.data)) as ClientMessage;
       if (msg.type === "ping") {
@@ -805,5 +875,15 @@ export class RoomDurable {
       type: "state",
       room: this.room,
     } satisfies ServerMessage);
+
+    // 全員退出したらルームをクリーンアップ予約
+    if (this.room && this.room.users.length === 0) {
+      console.log("All users left, scheduling room cleanup...");
+      this.setManagedTimeout(() => {
+        if (this.room && this.room.users.length === 0) {
+          this.cleanupRoom();
+        }
+      }, this.EMPTY_ROOM_CLEANUP_MS);
+    }
   }
 }
