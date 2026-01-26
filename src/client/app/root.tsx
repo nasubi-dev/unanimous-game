@@ -34,6 +34,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
       <head>
+        {/* Google Analytics */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-51GNEV2RM0"></script>
+        <script dangerouslySetInnerHTML={{__html: `
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+
+          gtag('config', 'G-51GNEV2RM0');
+        `}} />
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#fef7eb" />
@@ -41,22 +50,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="全員一致" />
 
-        {/* Google Analytics */}
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-51GNEV2RM0"></script>
-        <script dangerouslySetInnerHTML={{__html: `
-          window.dataLayer = window.dataLayer || [];
-          functiogoon gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-
-          gtag('config', 'G-51GNEV2RM0');
-        `}} />
-
-        
         {/* SEO関連メタタグ */}
         <meta name="author" content="nasubi.dev" />
         <meta name="keywords" content="ゲーム,パーティーゲーム,全員一致,オンラインゲーム,友達,家族" />
         <meta name="robots" content="index, follow" />
-        
+        <meta name="description" content="全員一致ゲームは、参加者全員が同じ答えを選ぶことを目指すオンラインパーティーゲームです。友達や家族と一緒に楽しもう！" />
+
         {/* OGP（Open Graph Protocol）メタタグ */}
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="全員一致ゲーム - nasubi.dev" />
