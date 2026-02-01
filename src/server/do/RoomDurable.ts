@@ -30,6 +30,9 @@ export class RoomDurable {
   private gmToken: string | null = null;
   private userSocketMap = new Map<string, WebSocket>(); // userId -> WebSocket
   private socketUserMap = new Map<WebSocket, string>(); // WebSocket -> userId
+  private socketConnectedAt = new Map<WebSocket, number>();
+  private roomCreatedAt: number | null = null;
+  private lastActivityAt: number | null = null;
 
   // タイマー管理
   private activeTimers = new Set<ReturnType<typeof setTimeout>>();
@@ -73,13 +76,24 @@ export class RoomDurable {
     }
     this.idleTimeoutTimer = setTimeout(() => {
       console.log("Room idle timeout reached, cleaning up...");
-      this.cleanupRoom();
+      this.cleanupRoom("idle");
     }, this.IDLE_TIMEOUT_MS);
+    this.lastActivityAt = Date.now();
   }
 
   // ルームのクリーンアップ
-  private cleanupRoom() {
-    console.log("Cleaning up room...");
+  private cleanupRoom(reason: "idle" | "empty") {
+    console.log(`Cleaning up room... reason=${reason}`);
+
+    const now = Date.now();
+    const roomAgeMs = this.roomCreatedAt ? now - this.roomCreatedAt : 0;
+    const idleMs = this.lastActivityAt ? now - this.lastActivityAt : 0;
+    void this.sendAnalyticsEvent(`room_cleanup_${reason}`, {
+      durationMs: roomAgeMs,
+      idleMs,
+      userCount: this.room?.users.length ?? 0,
+      socketCount: this.sockets.size,
+    });
 
     // 全WebSocket接続を閉じる
     for (const ws of this.sockets) {
@@ -92,6 +106,7 @@ export class RoomDurable {
     this.sockets.clear();
     this.userSocketMap.clear();
     this.socketUserMap.clear();
+    this.socketConnectedAt.clear();
 
     // タイマーをクリア
     this.clearAllTimers();
@@ -99,21 +114,44 @@ export class RoomDurable {
     // ルーム状態をクリア
     this.room = null;
     this.gmToken = null;
+    this.roomCreatedAt = null;
+    this.lastActivityAt = null;
 
     console.log("Room cleanup completed");
   }
 
   // Analytics用のヘルパーメソッド
-  private async sendAnalyticsEvent(eventType: string, data?: any) {
+  private async sendAnalyticsEvent(
+    eventType: string,
+    data?: {
+      value?: number;
+      userCount?: number;
+      socketCount?: number;
+      durationMs?: number;
+      idleMs?: number;
+    },
+  ) {
     try {
       await this.env.ANALYTICS.writeDataPoint({
         blobs: [eventType, this.room?.id || "unknown"],
-        doubles: [Date.now()],
+        doubles: [
+          Date.now(),
+          data?.value ?? 0,
+          data?.userCount ?? 0,
+          data?.socketCount ?? 0,
+          data?.durationMs ?? 0,
+          data?.idleMs ?? 0,
+        ],
         indexes: [eventType],
       });
     } catch (error) {
       console.error(`Analytics event failed for ${eventType}:`, error);
     }
+  }
+
+  private touchActivity(reason: string) {
+    this.lastActivityAt = Date.now();
+    console.log("Room activity:", reason);
   }
 
   // DO エントリポイント
@@ -133,8 +171,13 @@ export class RoomDurable {
       const { roomId, gmId, gmToken } = this.initRoom(providedId);
       this.gmToken = gmToken;
 
+      this.touchActivity("room_created");
       // Analytics: ルーム作成イベント送信
-      await this.sendAnalyticsEvent("room_created");
+      await this.sendAnalyticsEvent("room_created", {
+        value: 1,
+        userCount: this.room?.users.length ?? 0,
+        socketCount: this.sockets.size,
+      });
 
       // GM をユーザーとして登録
       let gmUserId = "";
@@ -157,8 +200,13 @@ export class RoomDurable {
       if (!name) return new Response("name required", { status: 400 });
       const user = this.addUser(name, icon);
 
+      this.touchActivity("player_joined");
       // Analytics: プレイヤー参加イベント送信
-      await this.sendAnalyticsEvent("player_joined");
+      await this.sendAnalyticsEvent("player_joined", {
+        value: 1,
+        userCount: this.room?.users.length ?? 0,
+        socketCount: this.sockets.size,
+      });
 
       this.broadcast({ type: "userJoined", user } satisfies ServerMessage);
       return Response.json({ userId: user.id });
@@ -167,6 +215,7 @@ export class RoomDurable {
     if (request.method === "GET" && url.pathname.endsWith("/state")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("state_fetch");
       return Response.json(this.room);
     }
 
@@ -176,6 +225,7 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("settings_update");
       const body = (await request
         .json()
         .catch(() => ({}))) as UpdateSettingsRequest;
@@ -202,6 +252,7 @@ export class RoomDurable {
     if (request.method === "POST" && url.pathname.endsWith("/start")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("game_start_request");
       if (this.room.status !== "waiting")
         return new Response("Game already started", { status: 409 });
 
@@ -266,6 +317,7 @@ export class RoomDurable {
     if (request.method === "POST" && url.pathname.endsWith("/round")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("round_create_request");
       if (this.room.status !== "playing")
         return new Response("Game not started", { status: 409 });
 
@@ -298,7 +350,11 @@ export class RoomDurable {
       this.room.rounds.push(newRound);
 
       // Analytics: ラウンド開始イベント送信
-      await this.sendAnalyticsEvent("round_started");
+      await this.sendAnalyticsEvent("round_started", {
+        value: 1,
+        userCount: this.room.users.length,
+        socketCount: this.sockets.size,
+      });
 
       this.broadcast({
         type: "roundCreated",
@@ -315,6 +371,7 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("topic_set_request");
 
       const pathParts = url.pathname.split("/");
       const roundId = pathParts[pathParts.length - 2];
@@ -346,6 +403,7 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("answer_submit_request");
 
       const pathParts = url.pathname.split("/");
       const roundId = pathParts[pathParts.length - 2];
@@ -389,6 +447,7 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("round_open_request");
 
       const pathParts = url.pathname.split("/");
       const roundId = pathParts[pathParts.length - 2];
@@ -416,6 +475,7 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("result_judge_request");
 
       const pathParts = url.pathname.split("/");
       const roundId = pathParts[pathParts.length - 2];
@@ -464,6 +524,7 @@ export class RoomDurable {
     if (request.method === "POST" && url.pathname.endsWith("/reset")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("room_reset_request");
 
       // GM権限チェック
       const authHeader = request.headers.get("authorization") || "";
@@ -501,6 +562,12 @@ export class RoomDurable {
         message: "ゲームがリセットされました",
       } satisfies ServerMessage);
 
+      await this.sendAnalyticsEvent("room_reset", {
+        value: 1,
+        userCount: this.room.users.length,
+        socketCount: this.sockets.size,
+      });
+
       // 新しい状態もブロードキャスト
       this.broadcast({
         type: "state",
@@ -515,6 +582,7 @@ export class RoomDurable {
     if (request.method === "POST" && url.pathname.endsWith("/gm-return-home")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
+      this.touchActivity("gm_return_home_request");
 
       // GM権限チェック
       const authHeader = request.headers.get("authorization") || "";
@@ -538,6 +606,12 @@ export class RoomDurable {
         type: "gmReturnedHome",
       } satisfies ServerMessage);
 
+      await this.sendAnalyticsEvent("gm_return_home", {
+        value: 1,
+        userCount: this.room.users.length,
+        socketCount: this.sockets.size,
+      });
+
       return Response.json({ ok: true });
     }
 
@@ -552,9 +626,24 @@ export class RoomDurable {
 
       // アイドルタイムアウトをリセット
       this.resetIdleTimeout();
+      this.touchActivity("ws_connected");
+      this.socketConnectedAt.set(server, Date.now());
+      void this.sendAnalyticsEvent("ws_connected", {
+        value: 1,
+        userCount: this.room?.users.length ?? 0,
+        socketCount: this.sockets.size + 1,
+      });
 
       this.sockets.add(server);
       server.addEventListener("close", () => {
+        const connectedAt = this.socketConnectedAt.get(server);
+        const durationMs = connectedAt ? Date.now() - connectedAt : 0;
+        this.socketConnectedAt.delete(server);
+        void this.sendAnalyticsEvent("ws_disconnected", {
+          durationMs,
+          userCount: this.room?.users.length ?? 0,
+          socketCount: Math.max(this.sockets.size - 1, 0),
+        });
         console.log(
           `WebSocket connection closed. Total connections: ${
             this.sockets.size - 1
@@ -566,6 +655,14 @@ export class RoomDurable {
       server.addEventListener("message", (ev) => this.onMessage(server, ev));
       server.addEventListener("error", (error) => {
         console.log("WebSocket error:", error);
+        const connectedAt = this.socketConnectedAt.get(server);
+        const durationMs = connectedAt ? Date.now() - connectedAt : 0;
+        this.socketConnectedAt.delete(server);
+        void this.sendAnalyticsEvent("ws_error", {
+          durationMs,
+          userCount: this.room?.users.length ?? 0,
+          socketCount: Math.max(this.sockets.size - 1, 0),
+        });
         this.sockets.delete(server);
         this.handleUserDisconnect(server);
       });
@@ -611,6 +708,7 @@ export class RoomDurable {
     roomId ||= (Math.floor(Math.random() * 9000) + 1000).toString();
     const gmId = crypto.randomUUID();
     const gmToken = crypto.randomUUID();
+    const now = Date.now();
     this.room = {
       id: roomId,
       gmId,
@@ -620,6 +718,8 @@ export class RoomDurable {
       rounds: [],
       gameResult: undefined,
     } satisfies Room;
+    this.roomCreatedAt = now;
+    this.lastActivityAt = now;
     return { roomId, gmId, gmToken };
   }
 
@@ -632,6 +732,7 @@ export class RoomDurable {
   private onMessage(ws: WebSocket, ev: MessageEvent) {
     // アイドルタイムアウトをリセット
     this.resetIdleTimeout();
+    this.touchActivity("ws_message");
 
     try {
       const msg = JSON.parse(String(ev.data)) as ClientMessage;
@@ -863,6 +964,12 @@ export class RoomDurable {
 
     console.log(`Removing user ${user.name} (${userId}) from room`);
 
+    void this.sendAnalyticsEvent("player_left", {
+      value: 1,
+      userCount: Math.max(this.room.users.length - 1, 0),
+      socketCount: this.sockets.size,
+    });
+
     // ユーザーを配列から削除
     this.room.users.splice(userIndex, 1);
 
@@ -884,7 +991,7 @@ export class RoomDurable {
       console.log("All users left, scheduling room cleanup...");
       this.setManagedTimeout(() => {
         if (this.room && this.room.users.length === 0) {
-          this.cleanupRoom();
+          this.cleanupRoom("empty");
         }
       }, this.EMPTY_ROOM_CLEANUP_MS);
     }
