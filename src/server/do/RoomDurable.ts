@@ -18,6 +18,9 @@ export interface Env {
   ROOM_DURABLE: DurableObjectNamespace;
   ASSETS: Fetcher;
   ANALYTICS: AnalyticsEngineDataset;
+  /** 部屋のクリーンアップ間隔（ミリ秒）。未設定なら既定値。検証用に上書きできる。 */
+  IDLE_TIMEOUT_MS?: string;
+  EMPTY_ROOM_CLEANUP_MS?: string;
 }
 
 /** WebSocket に紐づけてハイバネーションを跨いで保持する情報 */
@@ -55,12 +58,15 @@ export class RoomDurable {
 
   // ハイバネーション導入後、この待ち時間は storage.setAlarm() で待つので
   // duration には計上されない。UX を壊さない範囲で余裕を持たせてよい。
-  private readonly IDLE_TIMEOUT_MS = 20 * 60 * 1000; // 最終操作から20分で部屋を閉じる
-  private readonly EMPTY_ROOM_CLEANUP_MS = 3 * 60 * 1000; // 接続ゼロなら3分で片付ける
+  private readonly IDLE_TIMEOUT_MS: number; // 最終操作から部屋を閉じるまで
+  private readonly EMPTY_ROOM_CLEANUP_MS: number; // 接続ゼロから片付けるまで
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
+    this.IDLE_TIMEOUT_MS = Number(env.IDLE_TIMEOUT_MS) || 20 * 60 * 1000;
+    this.EMPTY_ROOM_CLEANUP_MS =
+      Number(env.EMPTY_ROOM_CLEANUP_MS) || 3 * 60 * 1000;
     // ハイバネーションから復帰したときのために storage から状態を復元する
     this.state.blockConcurrencyWhile(async () => {
       const [room, meta] = await Promise.all([
@@ -500,7 +506,7 @@ export class RoomDurable {
         unanimous: body.unanimous,
       } satisfies ServerMessage);
 
-      const finished = winResult.isWin || winResult.isDefeated;
+      const finished = !!(winResult.isWin || winResult.isDefeated);
       if (finished) {
         this.room.status = "finished";
         this.room.gameResult = winResult.isWin ? "win" : "lose";

@@ -9,7 +9,10 @@
     "dev:client": "npm --prefix src/client run dev",
     "build:client": "npm --prefix src/client ci && npm --prefix src/client run build",
     "build:production": "npm --prefix src/client install && npm --prefix src/client run build",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test:e2e": "node scripts/e2e-room.mjs",
+    "test:cleanup": "node scripts/e2e-cleanup.mjs",
+    "cf:usage": "node scripts/cf-usage.mjs"
   },
   "dependencies": {
     "hono": "^4.6.10"
