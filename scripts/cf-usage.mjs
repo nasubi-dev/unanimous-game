@@ -13,6 +13,7 @@
  *     「部屋数」と「1部屋あたりの生存時間」を分解
  */
 import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 
 const API = "https://api.cloudflare.com/client/v4";
 const DAYS = Number(process.argv[2] ?? 3);
@@ -36,6 +37,13 @@ function loadEnv() {
 
 /** wrangler login 済みなら、その OAuth トークンを流用する */
 function wranglerOAuthToken() {
+  // OAuth アクセストークンは短命なので、wrangler に更新させてから読む。
+  // （wrangler は任意のコマンド実行時に refresh_token でトークンを更新する）
+  try {
+    execSync("npx wrangler whoami", { stdio: "ignore", timeout: 60000 });
+  } catch {
+    /* 更新できなければ、保存済みトークンをそのまま試す */
+  }
   const candidates = [
     `${process.env.HOME}/Library/Preferences/.wrangler/config/default.toml`,
     `${process.env.HOME}/.wrangler/config/default.toml`,
