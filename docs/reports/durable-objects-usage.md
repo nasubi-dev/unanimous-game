@@ -78,12 +78,33 @@ DO が 30 分アイドルで cleanupRoom() → ソケットを close
 **5 分の空室クリーンアップ (`EMPTY_ROOM_CLEANUP_MS`) が一度も走らない。**
 GM が立てた部屋（＝全部屋）は必ず 30 分のアイドルタイムアウトを待つことになる。
 
-### Leak E: PWA / モバイルでバックグラウンドに回っても WS を閉じない
+### Leak E（決定的）: `leaveRoom()` が毎回「新しい WebSocket」を張っていた
 
-`room.tsx:289` の `visibilitychange` は `leaveRoom()`（HTTP）を呼ぶだけで **WebSocket を閉じていない**。
-ユーザーの見立て通り「ホームに戻ったまま帰ってこない」ケースで、
-OS が接続を切るまで（iOS Safari では数分〜十数分、PWA だとさらに長い）Leak A により課金が続く。
-しかも `leaveRoom` で users からは消えるが GM は消えない（Leak D）ため部屋は生き残る。
+これが本命。旧 `src/client/app/lib/api.ts` の実装:
+
+```ts
+export function leaveRoom(roomId: string, userId: string): void {
+  const ws = connectWs(roomId);   // ← 退出を伝えるためだけに新規接続を張る
+  ws.onopen = () => { ws.send(JSON.stringify({ type: "leave", userId })); ws.close(); };
+}
+```
+
+そして旧 `room.tsx` はこれを **`visibilitychange` (hidden) のたびに呼んでいた**。
+つまり、
+
+```
+スマホでホームに戻る / アプリを切り替える / 画面ロックする
+  → visibilitychange(hidden)
+  → leaveRoom() が新しい WebSocket を張る
+  → DO の fetch() が走り resetIdleTimeout() で アイドルタイマーが 30分に戻る
+```
+
+**ユーザーが画面を切り替えるだけで、部屋の寿命が毎回 30 分ずつ延長されていた。**
+ユーザーの「スマホで一度ホームに戻って帰ってこない場合も Room を継続し続けている」という
+見立ては正しく、しかも実際には「継続する」どころか「切り替えるたびに延命する」動作だった。
+
+PWA / モバイルでは `visibilitychange` は非常に高頻度で発火するため、
+数人が数十分プレイするだけで DO は何時間も起きたままになる。
 
 ### Leak F: 1 リクエストあたりのログが過剰
 
@@ -91,19 +112,52 @@ OS が接続を切るまで（iOS Safari では数分〜十数分、PWA だと�
 毎ブロードキャストで JSON 全文を出力している。duration への寄与は小さいが CPU time と
 Workers Logs の消費を無駄に押し上げている。
 
-## 3. 対処方針（優先度順）
+## 3. 実施した対処
 
-| # | 対処 | 期待効果 |
+すべて `8702cb7` / `4859053` で実装済み。
+
+| # | Leak | 対処 |
 | --- | --- | --- |
-| 1 | **WebSocket Hibernation API へ移行**（`state.acceptWebSocket`＋状態を `storage` に永続化） | 待機中の課金がほぼゼロに。duration を 1〜2 桁削減 |
-| 2 | **`setTimeout` のアイドルタイマーを `storage.setAlarm()` に置換** | アイドル待ちの 30 分ぶんの課金が消える |
-| 3 | **アイドルタイムアウトを 30 分 → 10 分に短縮**、空室は 1 分で片付け | 尾を引く時間を 1/3 に |
-| 4 | **GM も切断で users から外す**（部屋の所有権は `gmToken` で保持） | 空室クリーンアップが実際に動くようになる |
-| 5 | **クライアント: 再接続を指数バックオフ＋上限付きにし、サーバ都合の close(1000) では再接続しない** | 放置タブによる DO の叩き起こしを停止 |
-| 6 | **クライアント: `visibilitychange` で WS を閉じ、復帰時に張り直す** | PWA バックグラウンド滞留の課金を停止 |
-| 7 | ログを削減 | CPU time / Logs 節約 |
+| 1 | A | **WebSocket Hibernation API へ移行**。`server.accept()` → `state.acceptWebSocket()`。あわせて部屋の状態を `state.storage` に永続化し、`webSocketMessage` / `webSocketClose` / `webSocketError` ハンドラでハイバネーション復帰に対応 |
+| 2 | B | **アイドルタイマーを `setTimeout` から `storage.setAlarm()` へ置換**。待機中は DO が眠るので duration ゼロ |
+| 3 | D | **空室判定を `users.length` ではなく実際の WebSocket 接続数で行う**。GM は `users` から外れない仕様なので、旧実装では空室クリーンアップが構造的に発火し得なかった |
+| 4 | E | **`leaveRoom()` から新規 WebSocket 生成を削除**し、既存接続に流すだけに変更。さらに `visibilitychange(hidden)` での `leaveRoom()` 呼び出し自体を廃止（ハイバネーション後は接続を維持したままでも課金されないため、維持する方が安く UX も良い） |
+| 5 | C | **再接続を指数バックオフ化**（最大6回）。サーバが畳んだ場合の `close(1000, "room_closed")` では再接続しない。非表示中も再接続せず、復帰時に張り直す |
+| 6 | — | `/state` のポーリングでアイドルタイマーを延長しないようにした |
+| 7 | — | `gm-return-home` で部屋を即座に破棄 |
+| 8 | F | `broadcast` ごとの JSON 全文ログなど過剰なログを削除 |
+| 9 | — | 接続時に `identify` を送り、切断＝退出として扱えるようにした。バックグラウンド復帰で自分が消えていたら自動で入り直す |
 
-## 4. 検証手順
+タイムアウト値は `IDLE_TIMEOUT_MS` = 20 分 / `EMPTY_ROOM_CLEANUP_MS` = 3 分（wrangler の
+env var で上書き可能）。ハイバネーション後はこの待ち時間が課金されないので、
+無理に短縮せず UX を優先している。
+
+### 期待効果
+
+課金対象は「DO がメッセージを処理している時間」だけになる。
+1 ゲームあたりの操作は多く見積もっても数百回、1 回あたり数ミリ秒なので、
+
+```
+旧: 1部屋あたり 50〜90分 の DO 稼働   →  1日 20〜35部屋 で無料枠を使い切る
+新: 1部屋あたり 数秒 の DO 稼働       →  1日 数千部屋 でも余裕
+```
+
+つまり **2〜3 桁の削減**を見込んでいる。
+
+### 検証済み事項（ローカル）
+
+`scripts/e2e-room.mjs`（20項目）と `scripts/e2e-cleanup.mjs`（7項目）で全て成功。
+
+- 部屋作成→参加→設定→開始→お題→回答→オープン→判定 の一連の流れがハイバネーション対応後も動く
+- ハイバネーションを跨いで状態が失われない（storage 永続化）
+- 不正な `gmToken` は 403
+- WebSocket 切断でプレイヤーが `users` から消え、他プレイヤーに `userLeft` が届く
+- 接続ゼロで `EMPTY_ROOM_CLEANUP_MS` 後に部屋が破棄される
+- `ping` と `/state` ポーリングでは部屋が延命しない
+- 実際の操作があればアイドルタイマーが正しく延びる
+- 破棄時にクライアントへ `close(1000, "room_closed")` が届く
+
+## 4. デプロイ後の検証手順
 
 `scripts/cf-usage.mjs` で以下を突き合わせる。
 
@@ -112,11 +166,15 @@ Workers Logs の消費を無駄に押し上げている。
 - **Analytics Engine** `room_created` の件数 … 1 日の部屋数
 
 ```bash
-node scripts/cf-usage.mjs 7
+npm run cf:usage -- 7
 ```
 
 判定基準:
 
 - `Σ部屋生存時間 ≈ activeTime` かつ `avg_idle_min` が生存時間の大半 → **継続時間（アイドル尾引き）が主因**
 - `rooms_created` が 1 日数百件規模 → **部屋数が主因**
-- `ws_connects` が `rooms_created` に対して極端に多い → **Leak C の再接続ループが主因**
+- `ws_connects` が `rooms_created` に対して極端に多い → **Leak C / E の接続叩き起こしが主因**
+
+デプロイ後は同じコマンドで **日次 `duration` が桁で落ちていること**を確認する。
+`durationMs`（部屋の生存時間）は変わらなくてよい — 変わるべきなのは
+「生存している部屋が DO をメモリに載せ続けていない」ことなので、見るのは `activeTime` の方。
