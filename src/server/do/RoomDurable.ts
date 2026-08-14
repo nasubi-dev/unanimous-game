@@ -581,7 +581,15 @@ export class RoomDurable {
 
   // --- WebSocket (Hibernation) ---------------------------------------------
 
-  private handleWebSocketUpgrade(): Response {
+  private async handleWebSocketUpgrade(): Promise<Response> {
+    // 既に畳んだ部屋へは接続させない。
+    // アップグレード自体を断ることで、アラームを持たない接続が残るのを防ぐ。
+    // （接続を受けてから close すると、ハンドシェイク未完了のため相手に
+    //   close フレームが届かず中途半端に開いたままになる）
+    if (!this.room) {
+      return new Response("Room not initialized", { status: 404 });
+    }
+
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
 
@@ -592,24 +600,22 @@ export class RoomDurable {
 
     this.sendAnalyticsEvent("ws_connected", {
       value: 1,
-      userCount: this.room?.users.length ?? 0,
+      userCount: this.room.users.length,
       socketCount: this.openSockets().length,
     });
 
     // 接続直後に現状態を送る
-    if (this.room) {
-      server.send(
-        JSON.stringify({
-          type: "state",
-          room: this.room,
-        } satisfies ServerMessage),
-      );
-    }
+    server.send(
+      JSON.stringify({
+        type: "state",
+        room: this.room,
+      } satisfies ServerMessage),
+    );
 
-    // 接続はアイドル判定を延長しない。
+    // 接続そのものはアイドル判定を延長しない。
     // （バックグラウンド復帰などの再接続だけで部屋が延命するのを防ぐ）
-    // ただしアラームが未設定なら張っておく。
-    void this.scheduleCleanupAlarm();
+    // ただしアラームが消えていた場合に備えて張り直しておく。
+    await this.scheduleCleanupAlarm();
 
     return new Response(null, { status: 101, webSocket: client } as any);
   }

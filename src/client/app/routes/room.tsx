@@ -65,6 +65,7 @@ export default function Room() {
     let retry = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let rejoining = false;
+    const isHidden = () => document.visibilityState === "hidden";
 
     /** バックグラウンド復帰などで自分が部屋から消えていたら入り直す */
     const ensureMembership = async (room: Room) => {
@@ -306,16 +307,33 @@ export default function Room() {
         /* close で後始末される */
       };
 
-      ws.onclose = (ev) => {
+      ws.onclose = async (ev) => {
         if (disposed) return;
         // サーバが部屋を畳んだ／自分から抜けた場合は再接続しない
-        if (ev.code === 1000 && (ev.reason === "room_closed" || ev.reason === "leave")) {
+        if (
+          ev.code === 1000 &&
+          (ev.reason === "room_closed" || ev.reason === "leave")
+        ) {
           if (ev.reason === "room_closed") setToast("ルームが終了しました");
           return;
         }
         // 非表示中は再接続しない（復帰時に visibilitychange で張り直す）
-        if (document.visibilityState === "hidden") return;
+        if (isHidden()) return;
         if (retry >= 6) return;
+
+        // 部屋がもう存在しないなら再接続しない。
+        // 旧実装はここで無条件に再接続しており、サーバがアイドルで畳んだ部屋を
+        // そのたびに叩き起こしていた。
+        try {
+          if ((await fetch(`/api/rooms/${id}/state`)).status === 404) {
+            setToast("ルームが終了しました");
+            return;
+          }
+        } catch {
+          /* ネットワーク断のときは再接続を試す */
+        }
+        if (disposed || isHidden()) return;
+
         const delay = Math.min(30000, 1000 * 2 ** retry) + Math.random() * 500;
         retry++;
         retryTimer = setTimeout(open, delay);
