@@ -1,0 +1,14 @@
+const BASE="http://localhost:8793", WSB="ws://localhost:8793";
+const c=await (await fetch(`${BASE}/api/rooms`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:"GM",icon:1})})).json();
+const ws=new WebSocket(`${WSB}/ws/${c.roomId}`); await new Promise(r=>ws.addEventListener("open",r));
+ws.send(JSON.stringify({type:"identify",userId:c.gmUserId}));
+const j=await (await fetch(`${BASE}/api/rooms/${c.roomId}/join`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:"P2",icon:2})})).json();
+await fetch(`${BASE}/api/rooms/${c.roomId}/settings`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({gmToken:c.gmToken,settings:{winCondition:{type:"count",value:3},maxRounds:5}})});
+await fetch(`${BASE}/api/rooms/${c.roomId}/start`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({gmToken:c.gmToken})});
+await new Promise(r=>setTimeout(r,2000));
+const st=await (await fetch(`${BASE}/api/rooms/${c.roomId}/state`)).json();
+const rid=st.rounds[0].id;
+await fetch(`${BASE}/api/rooms/${c.roomId}/round/${rid}/topic`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({roundId:rid,topic:"好きな寿司ネタ",setterId:st.rounds[0].setterId})});
+await fetch(`${BASE}/api/rooms/${c.roomId}/round/${rid}/answer`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({roundId:rid,userId:c.gmUserId,value:"まぐろ"})});
+ws.close();
+console.log(JSON.stringify({roomId:c.roomId,gmToken:c.gmToken,gmUserId:c.gmUserId,p2:j.userId,roundId:rid}));

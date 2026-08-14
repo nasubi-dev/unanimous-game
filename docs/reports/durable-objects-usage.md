@@ -186,6 +186,13 @@ node scripts/ab-room-lifetime.mjs 8792 new
 # → {"aliveAfter16sOfBackgrounding":false,"roomLifetimeSec":16}
 ```
 
+**ハイバネーション復帰** — `scripts/e2e-hibernation.mjs`（11項目）。
+本番でしか起きない「DO インスタンスがメモリから消える」経路を、
+`--persist-to` つきの dev サーバをプロセスごと再起動することで再現した。
+途中まで進めたゲーム（ユーザー2名 / status=playing / 設定 / ラウンド / お題 / 回答）が
+storage から完全に復元され、`gmToken` も有効なまま、そのままゲームを続行できることを確認。
+**インメモリ状態に依存していた旧実装なら、この時点で部屋が丸ごと消えていた。**
+
 **機能退行がないこと** — `scripts/e2e-room.mjs`（20項目）と
 `scripts/e2e-cleanup.mjs`（7項目）で全て成功。
 
