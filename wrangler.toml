@@ -1,6 +1,8 @@
 name = "unanimous-game"
 main = "src/server/index.ts"
 compatibility_date = "2024-06-20"
+# 複数アカウントに所属しているため明示する（非対話環境だと選択できずデプロイが失敗する）
+account_id = "079a3b3ecd454f1d75f57a26c5a8707a"
 
 [assets]
 # 本番/開発ともに React Router のビルド成果物を配信
