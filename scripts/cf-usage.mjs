@@ -34,16 +34,43 @@ function loadEnv() {
   return env;
 }
 
+/** wrangler login 済みなら、その OAuth トークンを流用する */
+function wranglerOAuthToken() {
+  const candidates = [
+    `${process.env.HOME}/Library/Preferences/.wrangler/config/default.toml`,
+    `${process.env.HOME}/.wrangler/config/default.toml`,
+    `${process.env.HOME}/.config/.wrangler/config/default.toml`,
+  ];
+  for (const file of candidates) {
+    try {
+      const m = readFileSync(file, "utf8").match(/oauth_token\s*=\s*"([^"]+)"/);
+      if (m) return m[1];
+    } catch {
+      /* 次の候補へ */
+    }
+  }
+  return null;
+}
+
 const env = loadEnv();
-const TOKEN = env.CLOUDFLARE_API_TOKEN;
+const TOKEN = env.CLOUDFLARE_API_TOKEN || wranglerOAuthToken();
 if (!TOKEN) {
-  console.error("CLOUDFLARE_API_TOKEN が .env.local にありません");
+  console.error(
+    "CLOUDFLARE_API_TOKEN が .env.local に無く、wrangler にもログインしていません",
+  );
   process.exit(1);
 }
 const auth = { authorization: `Bearer ${TOKEN}` };
 
 async function accountId() {
   if (env.CLOUDFLARE_ACCOUNT_ID) return env.CLOUDFLARE_ACCOUNT_ID;
+  // wrangler.toml に account_id があればそれを使う
+  try {
+    const m = readFileSync("wrangler.toml", "utf8").match(/account_id\s*=\s*"([^"]+)"/);
+    if (m) return m[1];
+  } catch {
+    /* 次の手段へ */
+  }
   const res = await fetch(`${API}/accounts`, { headers: auth });
   const json = await res.json();
   if (!json.success) throw new Error(JSON.stringify(json.errors));
@@ -107,7 +134,7 @@ async function sql(account, statement) {
   }
 }
 
-const DATASET = "unanimous_game_metrics";
+const DATASET = `"unanimous-game-metrics"`;
 // blob1=eventType blob2=roomId
 // double1=timestamp double2=value double3=userCount
 // double4=socketCount double5=durationMs double6=idleMs
