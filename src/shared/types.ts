@@ -67,6 +67,9 @@ export type ServerMessage =
 
 export type ClientMessage =
   | { type: "ping" }
+  // HTTP /join 済みのユーザーが、この接続を自分のものとして紐づける。
+  // これにより接続が切れた時点でサーバ側がユーザーを片付けられる。
+  | { type: "identify"; userId: string }
   | { type: "join"; name: string; icon: string | number }
   | { type: "leave"; userId: string };
 

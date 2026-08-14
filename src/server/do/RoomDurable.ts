@@ -20,108 +20,157 @@ export interface Env {
   ANALYTICS: AnalyticsEngineDataset;
 }
 
+/** WebSocket に紐づけてハイバネーションを跨いで保持する情報 */
+type SocketAttachment = {
+  userId?: string;
+  connectedAt: number;
+};
+
+/** storage に永続化するメタ情報 */
+type RoomMeta = {
+  gmToken: string;
+  createdAt: number;
+  lastActivityAt: number;
+};
+
+const KEY_ROOM = "room";
+const KEY_META = "meta";
+
+/**
+ * 課金される duration（DO がメモリに常駐していた時間）を最小化するための方針:
+ *
+ * 1. WebSocket は Hibernation API (`state.acceptWebSocket`) で受ける。
+ *    メッセージが流れていない間 DO はメモリから退避され、その間は課金されない。
+ * 2. 長い待ち時間は `setTimeout` ではなく `storage.setAlarm()` を使う。
+ *    pending な setTimeout があると DO は絶対に退避できないため。
+ * 3. インメモリ状態はハイバネーションで消えるので、真実は常に storage 側に置く。
+ */
 export class RoomDurable {
   private state: DurableObjectState;
   private env: Env;
 
-  // インメモリ状態（永続化しない）
+  // storage のインメモリキャッシュ（ハイバネーション後は再ロードされる）
   private room: Room | null = null;
-  private sockets = new Set<WebSocket>();
-  private gmToken: string | null = null;
-  private userSocketMap = new Map<string, WebSocket>(); // userId -> WebSocket
-  private socketUserMap = new Map<WebSocket, string>(); // WebSocket -> userId
-  private socketConnectedAt = new Map<WebSocket, number>();
-  private roomCreatedAt: number | null = null;
-  private lastActivityAt: number | null = null;
+  private meta: RoomMeta | null = null;
 
-  // タイマー管理
-  private activeTimers = new Set<ReturnType<typeof setTimeout>>();
-  private idleTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30分
-  private readonly EMPTY_ROOM_CLEANUP_MS = 5 * 60 * 1000; // 5分
+  // ハイバネーション導入後、この待ち時間は storage.setAlarm() で待つので
+  // duration には計上されない。UX を壊さない範囲で余裕を持たせてよい。
+  private readonly IDLE_TIMEOUT_MS = 20 * 60 * 1000; // 最終操作から20分で部屋を閉じる
+  private readonly EMPTY_ROOM_CLEANUP_MS = 3 * 60 * 1000; // 接続ゼロなら3分で片付ける
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.env = env;
+    // ハイバネーションから復帰したときのために storage から状態を復元する
+    this.state.blockConcurrencyWhile(async () => {
+      const [room, meta] = await Promise.all([
+        this.state.storage.get<Room>(KEY_ROOM),
+        this.state.storage.get<RoomMeta>(KEY_META),
+      ]);
+      this.room = room ?? null;
+      this.meta = meta ?? null;
+    });
   }
 
-  // タイマー管理ヘルパー
-  private setManagedTimeout(
-    callback: () => void,
-    delay: number,
-  ): ReturnType<typeof setTimeout> {
-    const timer = setTimeout(() => {
-      this.activeTimers.delete(timer);
-      callback();
-    }, delay);
-    this.activeTimers.add(timer);
-    return timer;
+  // --- 永続化ヘルパー ------------------------------------------------------
+
+  private async saveRoom() {
+    if (this.room) await this.state.storage.put(KEY_ROOM, this.room);
   }
 
-  private clearAllTimers() {
-    for (const timer of this.activeTimers) {
-      clearTimeout(timer);
+  private async saveMeta() {
+    if (this.meta) await this.state.storage.put(KEY_META, this.meta);
+  }
+
+  /**
+   * 最終操作時刻を更新し、次のクリーンアップ用アラームを張り直す。
+   * アラームは setTimeout と違い DO をメモリに留めないので、待機中の課金はゼロ。
+   */
+  private async touchActivity() {
+    if (!this.meta) return;
+    this.meta.lastActivityAt = Date.now();
+    await this.saveMeta();
+    await this.scheduleCleanupAlarm();
+  }
+
+  /** 接続の有無に応じてクリーンアップ期限を決め、アラームを設定する */
+  private async scheduleCleanupAlarm() {
+    if (!this.meta) return;
+    const hasSockets = this.openSockets().length > 0;
+    const deadline =
+      this.meta.lastActivityAt +
+      (hasSockets ? this.IDLE_TIMEOUT_MS : this.EMPTY_ROOM_CLEANUP_MS);
+    const current = await this.state.storage.getAlarm();
+    // 秒単位のブレで毎回書き直さない（storage write を節約）
+    if (current === null || Math.abs(current - deadline) > 5000) {
+      await this.state.storage.setAlarm(deadline);
     }
-    this.activeTimers.clear();
-    if (this.idleTimeoutTimer) {
-      clearTimeout(this.idleTimeoutTimer);
-      this.idleTimeoutTimer = null;
-    }
   }
 
-  // アイドルタイムアウトをリセット
-  private resetIdleTimeout() {
-    if (this.idleTimeoutTimer) {
-      clearTimeout(this.idleTimeoutTimer);
-    }
-    this.idleTimeoutTimer = setTimeout(() => {
-      console.log("Room idle timeout reached, cleaning up...");
-      this.cleanupRoom("idle");
-    }, this.IDLE_TIMEOUT_MS);
-    this.lastActivityAt = Date.now();
+  /** 実際に開いている WebSocket のみを返す */
+  private openSockets(exclude?: WebSocket): WebSocket[] {
+    return this.state
+      .getWebSockets()
+      .filter((ws) => ws !== exclude && ws.readyState === WebSocket.OPEN);
   }
 
-  // ルームのクリーンアップ
-  private cleanupRoom(reason: "idle" | "empty") {
-    console.log(`Cleaning up room... reason=${reason}`);
+  // --- アラーム ------------------------------------------------------------
 
+  async alarm() {
+    if (!this.meta) {
+      await this.state.storage.deleteAll();
+      return;
+    }
     const now = Date.now();
-    const roomAgeMs = this.roomCreatedAt ? now - this.roomCreatedAt : 0;
-    const idleMs = this.lastActivityAt ? now - this.lastActivityAt : 0;
-    void this.sendAnalyticsEvent(`room_cleanup_${reason}`, {
+    const sockets = this.openSockets();
+    const limit = sockets.length
+      ? this.IDLE_TIMEOUT_MS
+      : this.EMPTY_ROOM_CLEANUP_MS;
+    const idleMs = now - this.meta.lastActivityAt;
+
+    if (idleMs >= limit) {
+      await this.cleanupRoom(sockets.length ? "idle" : "empty");
+      return;
+    }
+    // まだ期限前なら残り時間で張り直す（DO は再び眠る）
+    await this.state.storage.setAlarm(this.meta.lastActivityAt + limit);
+  }
+
+  /** 部屋を完全に破棄する。以降 DO は空になり、メモリからも退避できる。 */
+  private async cleanupRoom(reason: "idle" | "empty") {
+    const now = Date.now();
+    const roomAgeMs = this.meta ? now - this.meta.createdAt : 0;
+    const idleMs = this.meta ? now - this.meta.lastActivityAt : 0;
+
+    this.sendAnalyticsEvent(`room_cleanup_${reason}`, {
       durationMs: roomAgeMs,
       idleMs,
       userCount: this.room?.users.length ?? 0,
-      socketCount: this.sockets.size,
+      socketCount: this.state.getWebSockets().length,
     });
 
-    // 全WebSocket接続を閉じる
-    for (const ws of this.sockets) {
+    for (const ws of this.state.getWebSockets()) {
       try {
-        ws.close(1000, "Room closed due to inactivity");
-      } catch (e) {
-        console.error("Error closing WebSocket:", e);
+        // 1000 + このreasonで、クライアント側は「再接続しない」と判断する
+        ws.close(1000, "room_closed");
+      } catch {
+        /* すでに閉じている */
       }
     }
-    this.sockets.clear();
-    this.userSocketMap.clear();
-    this.socketUserMap.clear();
-    this.socketConnectedAt.clear();
 
-    // タイマーをクリア
-    this.clearAllTimers();
-
-    // ルーム状態をクリア
     this.room = null;
-    this.gmToken = null;
-    this.roomCreatedAt = null;
-    this.lastActivityAt = null;
-
-    console.log("Room cleanup completed");
+    this.meta = null;
+    await this.state.storage.deleteAlarm();
+    await this.state.storage.deleteAll();
   }
 
-  // Analytics用のヘルパーメソッド
-  private async sendAnalyticsEvent(
+  // --- Analytics -----------------------------------------------------------
+
+  /**
+   * writeDataPoint は同期的にキューイングされるので await しない。
+   * await すると DO をその分だけ長く起こしておくことになる。
+   */
+  private sendAnalyticsEvent(
     eventType: string,
     data?: {
       value?: number;
@@ -132,7 +181,7 @@ export class RoomDurable {
     },
   ) {
     try {
-      await this.env.ANALYTICS.writeDataPoint({
+      this.env.ANALYTICS.writeDataPoint({
         blobs: [eventType, this.room?.id || "unknown"],
         doubles: [
           Date.now(),
@@ -149,16 +198,17 @@ export class RoomDurable {
     }
   }
 
-  private touchActivity(reason: string) {
-    this.lastActivityAt = Date.now();
-    console.log("Room activity:", reason);
-  }
+  // --- DO エントリポイント --------------------------------------------------
 
-  // DO エントリポイント
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    console.log("RoomDurable fetch:", request.method, url.pathname);
-    // HTTP: /create, /join, /state
+
+    // WebSocket は最初に捌く（Hibernation で受ける）
+    if (request.headers.get("Upgrade") === "websocket") {
+      return this.handleWebSocketUpgrade();
+    }
+
+    // HTTP: /create
     if (request.method === "POST" && url.pathname.endsWith("/create")) {
       const body = (await request.json().catch(() => ({}))) as {
         roomId?: string;
@@ -169,22 +219,20 @@ export class RoomDurable {
       const gmName = (body.name ?? "").toString().trim();
       const gmIcon = body.icon !== undefined ? body.icon : 1;
       const { roomId, gmId, gmToken } = this.initRoom(providedId);
-      this.gmToken = gmToken;
 
-      this.touchActivity("room_created");
-      // Analytics: ルーム作成イベント送信
-      await this.sendAnalyticsEvent("room_created", {
+      this.sendAnalyticsEvent("room_created", {
         value: 1,
-        userCount: this.room?.users.length ?? 0,
-        socketCount: this.sockets.size,
+        userCount: 0,
+        socketCount: 0,
       });
 
       // GM をユーザーとして登録
       let gmUserId = "";
       if (gmName) {
-        const gmUser = this.addUser(gmName, gmIcon, true);
-        gmUserId = gmUser.id;
+        gmUserId = this.addUser(gmName, gmIcon, true).id;
       }
+      await this.saveRoom();
+      await this.touchActivity();
       return Response.json({ roomId, gmId, gmToken, gmUserId });
     }
 
@@ -199,13 +247,13 @@ export class RoomDurable {
         return new Response("Room not initialized", { status: 404 });
       if (!name) return new Response("name required", { status: 400 });
       const user = this.addUser(name, icon);
+      await this.saveRoom();
+      await this.touchActivity();
 
-      this.touchActivity("player_joined");
-      // Analytics: プレイヤー参加イベント送信
-      await this.sendAnalyticsEvent("player_joined", {
+      this.sendAnalyticsEvent("player_joined", {
         value: 1,
-        userCount: this.room?.users.length ?? 0,
-        socketCount: this.sockets.size,
+        userCount: this.room.users.length,
+        socketCount: this.openSockets().length,
       });
 
       this.broadcast({ type: "userJoined", user } satisfies ServerMessage);
@@ -215,7 +263,7 @@ export class RoomDurable {
     if (request.method === "GET" && url.pathname.endsWith("/state")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("state_fetch");
+      // state 取得はアイドル判定上の「操作」に数えない（ポーリングで延命させないため）
       return Response.json(this.room);
     }
 
@@ -225,18 +273,18 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("settings_update");
       const body = (await request
         .json()
         .catch(() => ({}))) as UpdateSettingsRequest;
-      if (!body?.gmToken || body.gmToken !== this.gmToken)
+      if (!this.isGm(body?.gmToken))
         return new Response("forbidden", { status: 403 });
       const next = this.applySettingsPatch(
         this.room.settings,
         body.settings || {},
       );
       this.room.settings = next;
-      // settingsUpdatedイベントと全状態の両方を送信
+      await this.saveRoom();
+      await this.touchActivity();
       this.broadcast({
         type: "settingsUpdated",
         settings: next,
@@ -252,63 +300,34 @@ export class RoomDurable {
     if (request.method === "POST" && url.pathname.endsWith("/start")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("game_start_request");
       if (this.room.status !== "waiting")
         return new Response("Game already started", { status: 409 });
 
       const body = (await request.json().catch(() => ({}))) as StartGameRequest;
-      if (!body?.gmToken || body.gmToken !== this.gmToken)
+      if (!this.isGm(body?.gmToken))
         return new Response("forbidden", { status: 403 });
-
-      // プレイヤー数チェック（2人以上必要）
       if (this.room.users.length < 2)
         return new Response("At least 2 players required", { status: 400 });
 
-      // まずカウントダウン開始をブロードキャスト
+      this.broadcast({ type: "gameCountdownStarted" } satisfies ServerMessage);
+
+      // 1.5秒だけ DO を起こしておく（アラームを使うほどの長さではない）
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      this.room.status = "playing";
+      const newRound = this.createRound();
+      this.room.rounds.push(newRound);
+      await this.saveRoom();
+      await this.touchActivity();
+
       this.broadcast({
-        type: "gameCountdownStarted",
+        type: "gameStarted",
+        room: this.room,
       } satisfies ServerMessage);
-
-      // 1.5秒後に実際のゲーム開始処理を実行
-      this.setManagedTimeout(() => {
-        this.room!.status = "playing";
-
-        // 自動で最初のラウンドを作成
-        const roundId = crypto.randomUUID();
-        console.log(
-          "Game starting. Users:",
-          this.room!.users.map((u) => ({
-            id: u.id,
-            name: u.name,
-            isGM: u.isGM,
-          })),
-        );
-        console.log("TopicMode:", this.room!.settings.topicMode);
-        const setterId = this.getNextTopicSetter();
-        console.log("Selected setterId:", setterId);
-
-        const newRound: Round = {
-          id: roundId,
-          topic: "",
-          setterId,
-          answers: [],
-          result: "unopened",
-          unanimous: null,
-        };
-
-        this.room!.rounds.push(newRound);
-
-        this.broadcast({
-          type: "gameStarted",
-          room: this.room!,
-        } satisfies ServerMessage);
-        this.broadcast({
-          type: "roundCreated",
-          round: newRound,
-        } satisfies ServerMessage);
-
-        // もしmaxRoundsが1の場合は、最初の結果判定で敗北がありうるため、ここでは開始のみ
-      }, 1500);
+      this.broadcast({
+        type: "roundCreated",
+        round: newRound,
+      } satisfies ServerMessage);
 
       return Response.json({ ok: true });
     }
@@ -317,11 +336,9 @@ export class RoomDurable {
     if (request.method === "POST" && url.pathname.endsWith("/round")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("round_create_request");
       if (this.room.status !== "playing")
         return new Response("Game not started", { status: 409 });
 
-      // 上限ラウンド数チェック
       if (
         this.room.settings.maxRounds &&
         this.room.rounds.length >= this.room.settings.maxRounds
@@ -332,35 +349,25 @@ export class RoomDurable {
       const body = (await request
         .json()
         .catch(() => ({}))) as CreateRoundRequest;
-      if (!body?.gmToken || body.gmToken !== this.gmToken)
+      if (!this.isGm(body?.gmToken))
         return new Response("forbidden", { status: 403 });
 
-      const roundId = crypto.randomUUID();
-      const setterId = this.getNextTopicSetter();
-
-      const newRound: Round = {
-        id: roundId,
-        topic: "",
-        setterId,
-        answers: [],
-        result: "unopened",
-        unanimous: null,
-      };
-
+      const newRound = this.createRound();
       this.room.rounds.push(newRound);
+      await this.saveRoom();
+      await this.touchActivity();
 
-      // Analytics: ラウンド開始イベント送信
-      await this.sendAnalyticsEvent("round_started", {
+      this.sendAnalyticsEvent("round_started", {
         value: 1,
         userCount: this.room.users.length,
-        socketCount: this.sockets.size,
+        socketCount: this.openSockets().length,
       });
 
       this.broadcast({
         type: "roundCreated",
         round: newRound,
       } satisfies ServerMessage);
-      return Response.json({ roundId });
+      return Response.json({ roundId: newRound.id });
     }
 
     // お題設定
@@ -371,22 +378,20 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("topic_set_request");
 
-      const pathParts = url.pathname.split("/");
-      const roundId = pathParts[pathParts.length - 2];
+      const roundId = this.roundIdFromPath(url.pathname);
       const round = this.room.rounds.find((r) => r.id === roundId);
       if (!round) return new Response("Round not found", { status: 404 });
 
       const body = (await request.json().catch(() => ({}))) as SetTopicRequest;
       if (!body?.setterId || !body?.topic?.trim())
         return new Response("setterId and topic required", { status: 400 });
-
-      // 設定権限チェック
       if (round.setterId !== body.setterId)
         return new Response("Not authorized to set topic", { status: 403 });
 
       round.topic = body.topic.trim();
+      await this.saveRoom();
+      await this.touchActivity();
       this.broadcast({
         type: "topicSet",
         roundId,
@@ -403,10 +408,8 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("answer_submit_request");
 
-      const pathParts = url.pathname.split("/");
-      const roundId = pathParts[pathParts.length - 2];
+      const roundId = this.roundIdFromPath(url.pathname);
       const round = this.room.rounds.find((r) => r.id === roundId);
       if (!round) return new Response("Round not found", { status: 404 });
       if (round.result === "opened")
@@ -418,15 +421,15 @@ export class RoomDurable {
       if (!body?.userId || !body?.value?.trim())
         return new Response("userId and value required", { status: 400 });
 
-      // 既存の回答を削除して新しい回答を追加
       round.answers = round.answers.filter((a) => a.userId !== body.userId);
       round.answers.push({
         userId: body.userId,
         value: body.value.trim(),
         submittedAt: Date.now(),
       });
+      await this.saveRoom();
+      await this.touchActivity();
 
-      // より詳細な情報をbroadcast - 現在の回答状況を含める
       this.broadcast({
         type: "answerSubmitted",
         roundId,
@@ -447,18 +450,18 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("round_open_request");
 
-      const pathParts = url.pathname.split("/");
-      const roundId = pathParts[pathParts.length - 2];
+      const roundId = this.roundIdFromPath(url.pathname);
       const round = this.room.rounds.find((r) => r.id === roundId);
       if (!round) return new Response("Round not found", { status: 404 });
 
       const body = (await request.json().catch(() => ({}))) as OpenRoundRequest;
-      if (!body?.gmToken || body.gmToken !== this.gmToken)
+      if (!this.isGm(body?.gmToken))
         return new Response("forbidden", { status: 403 });
 
       round.result = "opened";
+      await this.saveRoom();
+      await this.touchActivity();
       this.broadcast({
         type: "roundOpened",
         roundId,
@@ -475,24 +478,20 @@ export class RoomDurable {
     ) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("result_judge_request");
 
-      const pathParts = url.pathname.split("/");
-      const roundId = pathParts[pathParts.length - 2];
+      const roundId = this.roundIdFromPath(url.pathname);
       const round = this.room.rounds.find((r) => r.id === roundId);
       if (!round) return new Response("Round not found", { status: 404 });
 
       const body = (await request
         .json()
         .catch(() => ({}))) as JudgeResultRequest;
-      if (!body?.gmToken || body.gmToken !== this.gmToken)
+      if (!this.isGm(body?.gmToken))
         return new Response("forbidden", { status: 403 });
       if (typeof body.unanimous !== "boolean")
         return new Response("unanimous must be boolean", { status: 400 });
 
       round.unanimous = body.unanimous;
-
-      // 勝利条件をチェック
       const winResult = this.checkWinCondition();
 
       this.broadcast({
@@ -501,8 +500,8 @@ export class RoomDurable {
         unanimous: body.unanimous,
       } satisfies ServerMessage);
 
-      // 勝利条件を満たした場合、または敗北した場合はゲーム終了
-      if (winResult.isWin || winResult.isDefeated) {
+      const finished = winResult.isWin || winResult.isDefeated;
+      if (finished) {
         this.room.status = "finished";
         this.room.gameResult = winResult.isWin ? "win" : "lose";
         this.broadcast({
@@ -510,12 +509,13 @@ export class RoomDurable {
           room: this.room,
           gameResult: this.room.gameResult,
         } satisfies ServerMessage);
-        console.log("Game finished:", winResult.reason);
       }
+      await this.saveRoom();
+      await this.touchActivity();
 
       return Response.json({
         ok: true,
-        gameFinished: winResult.isWin || winResult.isDefeated,
+        gameFinished: finished,
         reason: winResult.reason,
       });
     }
@@ -524,187 +524,223 @@ export class RoomDurable {
     if (request.method === "POST" && url.pathname.endsWith("/reset")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("room_reset_request");
-
-      // GM権限チェック
-      const authHeader = request.headers.get("authorization") || "";
-      const xGmToken = request.headers.get("x-gm-token") || "";
-
-      let providedToken = "";
-      if (authHeader.startsWith("Bearer ")) {
-        providedToken = authHeader.substring(7);
-      } else if (xGmToken) {
-        providedToken = xGmToken;
-      }
-
-      if (!providedToken || providedToken !== this.gmToken) {
-        console.log("Reset failed: invalid GM token", {
-          provided: providedToken ? "***" : "none",
-          expected: this.gmToken ? "***" : "none",
-        });
+      if (!this.isGm(this.tokenFromHeaders(request)))
         return new Response("forbidden", { status: 403 });
-      }
 
-      console.log("Resetting game...");
-
-      // ゲーム状態をリセット
       this.room.status = "waiting";
       this.room.rounds = [];
+      this.room.gameResult = undefined;
+      await this.saveRoom();
+      await this.touchActivity();
 
-      // 全員の準備状態をリセット（readyプロパティがある場合のみ）
-      // this.room.users.forEach(user => {
-      //   if ('ready' in user) user.ready = false;
-      // });
-
-      // リセット完了をブロードキャスト
       this.broadcast({
         type: "roomReset",
         message: "ゲームがリセットされました",
       } satisfies ServerMessage);
 
-      await this.sendAnalyticsEvent("room_reset", {
+      this.sendAnalyticsEvent("room_reset", {
         value: 1,
         userCount: this.room.users.length,
-        socketCount: this.sockets.size,
+        socketCount: this.openSockets().length,
       });
 
-      // 新しい状態もブロードキャスト
       this.broadcast({
         type: "state",
         room: this.room,
       } satisfies ServerMessage);
-
-      console.log("Game reset completed");
       return Response.json({ ok: true });
     }
 
-    // GMがトップに戻る（他のプレイヤーもリダイレクト）
+    // GMがトップに戻る（部屋を畳む）
     if (request.method === "POST" && url.pathname.endsWith("/gm-return-home")) {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
-      this.touchActivity("gm_return_home_request");
-
-      // GM権限チェック
-      const authHeader = request.headers.get("authorization") || "";
-      const xGmToken = request.headers.get("x-gm-token") || "";
-
-      let providedToken = "";
-      if (authHeader.startsWith("Bearer ")) {
-        providedToken = authHeader.substring(7);
-      } else if (xGmToken) {
-        providedToken = xGmToken;
-      }
-
-      if (!providedToken || providedToken !== this.gmToken) {
+      if (!this.isGm(this.tokenFromHeaders(request)))
         return new Response("forbidden", { status: 403 });
-      }
 
-      console.log("GM returning home, broadcasting to all players...");
-
-      // 全員にトップに戻るよう指示
-      this.broadcast({
-        type: "gmReturnedHome",
-      } satisfies ServerMessage);
-
-      await this.sendAnalyticsEvent("gm_return_home", {
+      this.broadcast({ type: "gmReturnedHome" } satisfies ServerMessage);
+      this.sendAnalyticsEvent("gm_return_home", {
         value: 1,
         userCount: this.room.users.length,
-        socketCount: this.sockets.size,
+        socketCount: this.openSockets().length,
       });
 
+      // GM が抜けた部屋を 10 分生かしておく理由はないので即座に畳む
+      await this.cleanupRoom("empty");
       return Response.json({ ok: true });
-    }
-
-    // 必要に応じて /start /answer /open などを実装
-    if (request.headers.get("Upgrade") === "websocket") {
-      const pair = new WebSocketPair();
-      const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
-      server.accept();
-      console.log(
-        `New WebSocket connection. Total connections: ${this.sockets.size + 1}`,
-      );
-
-      // アイドルタイムアウトをリセット
-      this.resetIdleTimeout();
-      this.touchActivity("ws_connected");
-      this.socketConnectedAt.set(server, Date.now());
-      void this.sendAnalyticsEvent("ws_connected", {
-        value: 1,
-        userCount: this.room?.users.length ?? 0,
-        socketCount: this.sockets.size + 1,
-      });
-
-      this.sockets.add(server);
-      server.addEventListener("close", () => {
-        const connectedAt = this.socketConnectedAt.get(server);
-        const durationMs = connectedAt ? Date.now() - connectedAt : 0;
-        this.socketConnectedAt.delete(server);
-        void this.sendAnalyticsEvent("ws_disconnected", {
-          durationMs,
-          userCount: this.room?.users.length ?? 0,
-          socketCount: Math.max(this.sockets.size - 1, 0),
-        });
-        console.log(
-          `WebSocket connection closed. Total connections: ${
-            this.sockets.size - 1
-          }`,
-        );
-        this.sockets.delete(server);
-        this.handleUserDisconnect(server);
-      });
-      server.addEventListener("message", (ev) => this.onMessage(server, ev));
-      server.addEventListener("error", (error) => {
-        console.log("WebSocket error:", error);
-        const connectedAt = this.socketConnectedAt.get(server);
-        const durationMs = connectedAt ? Date.now() - connectedAt : 0;
-        this.socketConnectedAt.delete(server);
-        void this.sendAnalyticsEvent("ws_error", {
-          durationMs,
-          userCount: this.room?.users.length ?? 0,
-          socketCount: Math.max(this.sockets.size - 1, 0),
-        });
-        this.sockets.delete(server);
-        this.handleUserDisconnect(server);
-      });
-
-      // 接続直後に現状態を送信
-      if (this.room) {
-        const stateMessage = JSON.stringify({
-          type: "state",
-          room: this.room,
-        } satisfies ServerMessage);
-        console.log("Sending initial state to new connection:", stateMessage);
-        server.send(stateMessage);
-      }
-      return new Response(null, { status: 101, webSocket: client } as any);
     }
 
     return new Response("OK");
   }
 
+  // --- WebSocket (Hibernation) ---------------------------------------------
+
+  private handleWebSocketUpgrade(): Response {
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
+
+    // accept() ではなく acceptWebSocket() を使うことで、
+    // メッセージが来ていない間 DO はメモリから退避され課金されない。
+    this.state.acceptWebSocket(server);
+    server.serializeAttachment({ connectedAt: Date.now() } as SocketAttachment);
+
+    this.sendAnalyticsEvent("ws_connected", {
+      value: 1,
+      userCount: this.room?.users.length ?? 0,
+      socketCount: this.openSockets().length,
+    });
+
+    // 接続直後に現状態を送る
+    if (this.room) {
+      server.send(
+        JSON.stringify({
+          type: "state",
+          room: this.room,
+        } satisfies ServerMessage),
+      );
+    }
+
+    // 接続はアイドル判定を延長しない。
+    // （バックグラウンド復帰などの再接続だけで部屋が延命するのを防ぐ）
+    // ただしアラームが未設定なら張っておく。
+    void this.scheduleCleanupAlarm();
+
+    return new Response(null, { status: 101, webSocket: client } as any);
+  }
+
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+    let msg: ClientMessage;
+    try {
+      msg = JSON.parse(
+        typeof message === "string" ? message : new TextDecoder().decode(message),
+      ) as ClientMessage;
+    } catch {
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          message: "bad message",
+        } satisfies ServerMessage),
+      );
+      return;
+    }
+
+    if (msg.type === "ping") {
+      // ping は「操作」ではないので延命させない。状態だけ返す。
+      if (this.room)
+        ws.send(
+          JSON.stringify({
+            type: "state",
+            room: this.room,
+          } satisfies ServerMessage),
+        );
+      return;
+    }
+
+    if (msg.type === "identify") {
+      // 接続とユーザーの紐づけのみ。部屋の延命はしない。
+      const att = (ws.deserializeAttachment() ?? {
+        connectedAt: Date.now(),
+      }) as SocketAttachment;
+      att.userId = msg.userId;
+      ws.serializeAttachment(att);
+      return;
+    }
+
+    if (msg.type === "join") {
+      if (!this.room) return;
+      const user = this.addUser(msg.name, msg.icon);
+      const att = (ws.deserializeAttachment() ?? {
+        connectedAt: Date.now(),
+      }) as SocketAttachment;
+      att.userId = user.id;
+      ws.serializeAttachment(att);
+      await this.saveRoom();
+      await this.touchActivity();
+      this.broadcast({ type: "userJoined", user } satisfies ServerMessage);
+      return;
+    }
+
+    if (msg.type === "leave") {
+      await this.removeUserById(msg.userId);
+      return;
+    }
+  }
+
+  async webSocketClose(ws: WebSocket, _code: number, _reason: string) {
+    const att = ws.deserializeAttachment() as SocketAttachment | null;
+    this.sendAnalyticsEvent("ws_disconnected", {
+      durationMs: att?.connectedAt ? Date.now() - att.connectedAt : 0,
+      userCount: this.room?.users.length ?? 0,
+      socketCount: this.openSockets(ws).length,
+    });
+    await this.onSocketGone(ws, att?.userId);
+  }
+
+  async webSocketError(ws: WebSocket, _error: unknown) {
+    const att = ws.deserializeAttachment() as SocketAttachment | null;
+    this.sendAnalyticsEvent("ws_error", {
+      durationMs: att?.connectedAt ? Date.now() - att.connectedAt : 0,
+      userCount: this.room?.users.length ?? 0,
+      socketCount: this.openSockets(ws).length,
+    });
+    await this.onSocketGone(ws, att?.userId);
+  }
+
+  /**
+   * 接続が消えたときの共通処理。
+   * 「接続がゼロになったら短時間で畳む」判定は users 配列ではなく
+   * 実際の接続数で行う（GM は users から消えないため）。
+   */
+  private async onSocketGone(ws: WebSocket, userId?: string) {
+    if (userId) await this.removeUserById(userId);
+    if (this.openSockets(ws).length === 0 && this.meta) {
+      // 誰も繋がっていないので EMPTY_ROOM_CLEANUP_MS 後に片付ける
+      await this.state.storage.setAlarm(
+        Date.now() + this.EMPTY_ROOM_CLEANUP_MS,
+      );
+    }
+  }
+
   private broadcast(payload: unknown) {
     const data = JSON.stringify(payload);
-    console.log(`Broadcasting to ${this.sockets.size} sockets:`, data);
-    let sent = 0;
-    for (const ws of this.sockets) {
+    for (const ws of this.state.getWebSockets()) {
       try {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(data);
-          sent++;
-        } else {
-          console.log("Removing closed socket");
-          this.sockets.delete(ws);
-        }
-      } catch (e) {
-        console.log("Error sending to socket:", e);
-        this.sockets.delete(ws);
+        if (ws.readyState === WebSocket.OPEN) ws.send(data);
+      } catch {
+        /* 送信できない接続は無視（close イベントで片付く） */
       }
     }
-    console.log(`Successfully sent to ${sent} sockets`);
+  }
+
+  // --- ゲームロジック -------------------------------------------------------
+
+  private isGm(token: string | null | undefined): boolean {
+    return !!token && !!this.meta?.gmToken && token === this.meta.gmToken;
+  }
+
+  private tokenFromHeaders(request: Request): string {
+    const authHeader = request.headers.get("authorization") || "";
+    if (authHeader.startsWith("Bearer ")) return authHeader.substring(7);
+    return request.headers.get("x-gm-token") || "";
+  }
+
+  private roundIdFromPath(pathname: string): string {
+    const parts = pathname.split("/");
+    return parts[parts.length - 2];
+  }
+
+  private createRound(): Round {
+    return {
+      id: crypto.randomUUID(),
+      topic: "",
+      setterId: this.getNextTopicSetter(),
+      answers: [],
+      result: "unopened",
+      unanimous: null,
+    };
   }
 
   private initRoom(roomId?: string) {
-    // roomId が指定されていればそれを採用、なければ 4桁番号を生成
     roomId ||= (Math.floor(Math.random() * 9000) + 1000).toString();
     const gmId = crypto.randomUUID();
     const gmToken = crypto.randomUUID();
@@ -718,8 +754,7 @@ export class RoomDurable {
       rounds: [],
       gameResult: undefined,
     } satisfies Room;
-    this.roomCreatedAt = now;
-    this.lastActivityAt = now;
+    this.meta = { gmToken, createdAt: now, lastActivityAt: now };
     return { roomId, gmId, gmToken };
   }
 
@@ -727,43 +762,6 @@ export class RoomDurable {
     const user = { id: crypto.randomUUID(), name, icon, isGM };
     this.room!.users.push(user);
     return user;
-  }
-
-  private onMessage(ws: WebSocket, ev: MessageEvent) {
-    // アイドルタイムアウトをリセット
-    this.resetIdleTimeout();
-    this.touchActivity("ws_message");
-
-    try {
-      const msg = JSON.parse(String(ev.data)) as ClientMessage;
-      if (msg.type === "ping") {
-        if (this.room)
-          ws.send(
-            JSON.stringify({
-              type: "state",
-              room: this.room,
-            } satisfies ServerMessage),
-          );
-      }
-      if (msg.type === "join") {
-        if (!this.room) return;
-        const user = this.addUser(msg.name, msg.icon);
-        // WebSocketとユーザーIDの関連付けを保存
-        this.userSocketMap.set(user.id, ws);
-        this.socketUserMap.set(ws, user.id);
-        this.broadcast({ type: "userJoined", user } satisfies ServerMessage);
-      }
-      if (msg.type === "leave") {
-        this.handleUserLeave(msg.userId);
-      }
-    } catch (e) {
-      ws.send(
-        JSON.stringify({
-          type: "error",
-          message: "bad message",
-        } satisfies ServerMessage),
-      );
-    }
   }
 
   private applySettingsPatch(
@@ -808,31 +806,15 @@ export class RoomDurable {
   private getNextTopicSetter(): string {
     if (!this.room) return "";
 
-    // GM固定モードの場合
     if (this.room.settings.topicMode === "gm") {
-      const gm = this.room.users.find((u) => u.isGM);
-      return gm?.id || "";
+      return this.room.users.find((u) => u.isGM)?.id || "";
     }
 
-    // 全員順番モードの場合
     if (this.room.settings.topicMode === "all") {
-      // 全てのユーザー（GMを含む）を対象とする
       const allUsers = this.room.users;
       if (allUsers.length === 0) return "";
-
-      // 既存のラウンド数を基準にして次の人を選択
-      // 新しいラウンドを作成する直前なので、現在のラウンド数がそのまま次のインデックスになる
-      const roundCount = this.room.rounds.length;
-      const nextUserIndex = roundCount % allUsers.length;
-      console.log(
-        `Setting topic setter (all users): round=${
-          roundCount + 1
-        }, userIndex=${nextUserIndex}, userId=${
-          allUsers[nextUserIndex]?.id
-        }, userName=${allUsers[nextUserIndex]?.name}, isGM=${
-          allUsers[nextUserIndex]?.isGM
-        }`,
-      );
+      // 新しいラウンドを作る直前なので、現在のラウンド数がそのまま次のインデックス
+      const nextUserIndex = this.room.rounds.length % allUsers.length;
       return allUsers[nextUserIndex]?.id || "";
     }
 
@@ -846,17 +828,11 @@ export class RoomDurable {
   } {
     if (!this.room) return { isWin: false };
 
-    const { winCondition, maxRounds } = this.room.settings;
+    const { maxRounds } = this.room.settings;
 
-    // maxRoundsが設定されている場合の処理
     if (maxRounds && this.room.rounds.length >= maxRounds) {
-      // まず勝利条件をチェック
       const winResult = this.checkWinConditionInternal();
-      if (winResult.isWin) {
-        return winResult;
-      }
-
-      // 勝利条件を満たしていない場合は敗北
+      if (winResult.isWin) return winResult;
       return {
         isWin: false,
         isDefeated: true,
@@ -864,7 +840,6 @@ export class RoomDurable {
       };
     }
 
-    // 通常の勝利条件チェック
     return this.checkWinConditionInternal();
   }
 
@@ -872,12 +847,8 @@ export class RoomDurable {
     if (!this.room) return { isWin: false };
 
     const { winCondition } = this.room.settings;
+    if (winCondition.type === "none") return { isWin: false };
 
-    if (winCondition.type === "none") {
-      return { isWin: false };
-    }
-
-    // 全員一致したラウンドのみを対象とする
     const unanimousRounds = this.room.rounds.filter(
       (r) => r.unanimous === true,
     );
@@ -893,11 +864,8 @@ export class RoomDurable {
     }
 
     if (winCondition.type === "consecutive") {
-      // 連続一致の判定
       let consecutiveCount = 0;
       let maxConsecutive = 0;
-
-      // 最新のラウンドから逆順で連続一致をチェック
       for (let i = this.room.rounds.length - 1; i >= 0; i--) {
         const round = this.room.rounds[i];
         if (round.unanimous === true) {
@@ -906,9 +874,8 @@ export class RoomDurable {
         } else if (round.unanimous === false) {
           break; // 連続記録が途切れる
         }
-        // unanimous === null の場合は判定前なのでスキップ
+        // unanimous === null は判定前なのでスキップ
       }
-
       const isWin = maxConsecutive >= winCondition.value;
       return {
         isWin,
@@ -921,79 +888,32 @@ export class RoomDurable {
     return { isWin: false };
   }
 
-  // WebSocket接続切断時の処理
-  private handleUserDisconnect(ws: WebSocket) {
-    const userId = this.socketUserMap.get(ws);
-    if (userId) {
-      console.log(`User ${userId} disconnected via WebSocket close/error`);
-      this.removeUserById(userId);
-      this.socketUserMap.delete(ws);
-      this.userSocketMap.delete(userId);
-    }
-  }
-
-  // ユーザーの明示的な退出処理
-  private handleUserLeave(userId: string) {
-    console.log(`User ${userId} explicitly left`);
-    this.removeUserById(userId);
-
-    // WebSocket接続も清理
-    const ws = this.userSocketMap.get(userId);
-    if (ws) {
-      this.socketUserMap.delete(ws);
-      this.userSocketMap.delete(userId);
-    }
-  }
-
-  // ユーザーID指定での削除処理
-  private removeUserById(userId: string) {
+  private async removeUserById(userId: string) {
     if (!this.room) return;
 
     const userIndex = this.room.users.findIndex((user) => user.id === userId);
     if (userIndex === -1) return;
 
     const user = this.room.users[userIndex];
+    if (user.isGM) return; // GM は users から外さない（部屋の所有権が壊れるため）
 
-    // GMの場合は削除しない
-    if (user.isGM) {
-      console.log(
-        `GM ${user.name} attempted to leave, but GMs cannot be removed`,
-      );
-      return;
-    }
-
-    console.log(`Removing user ${user.name} (${userId}) from room`);
-
-    void this.sendAnalyticsEvent("player_left", {
+    this.sendAnalyticsEvent("player_left", {
       value: 1,
       userCount: Math.max(this.room.users.length - 1, 0),
-      socketCount: this.sockets.size,
+      socketCount: this.openSockets().length,
     });
 
-    // ユーザーを配列から削除
     this.room.users.splice(userIndex, 1);
+    await this.saveRoom();
 
-    // ユーザー退出をブロードキャスト
     this.broadcast({
       type: "userLeft",
       userId: user.id,
       userName: user.name,
     } satisfies ServerMessage);
-
-    // 更新された状態もブロードキャスト
     this.broadcast({
       type: "state",
       room: this.room,
     } satisfies ServerMessage);
-
-    // 全員退出したらルームをクリーンアップ予約
-    if (this.room && this.room.users.length === 0) {
-      console.log("All users left, scheduling room cleanup...");
-      this.setManagedTimeout(() => {
-        if (this.room && this.room.users.length === 0) {
-          this.cleanupRoom("empty");
-        }
-      }, this.EMPTY_ROOM_CLEANUP_MS);
-    }
   }
 }

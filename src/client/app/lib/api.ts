@@ -272,15 +272,29 @@ export async function gmReturnHome(
   return res.json();
 }
 
-export function leaveRoom(roomId: string, userId: string): void {
-  const ws = connectWs(roomId);
-  ws.onopen = () => {
-    ws.send(
-      JSON.stringify({
-        type: "leave",
-        userId,
-      })
-    );
-    ws.close();
-  };
+/**
+ * 退出を通知する。
+ *
+ * 以前はここで `connectWs()` を呼んで新しい WebSocket を張っていたが、
+ * それは Durable Object を叩き起こしてアイドルタイマーを延長する動作であり、
+ * タブ切り替えのたびに部屋の寿命が伸びて duration を食い潰していた。
+ * 既に開いている接続があればそこに流し、無ければ接続を閉じるだけでよい
+ * （サーバ側は WebSocket の close をもって退出とみなす）。
+ */
+export function leaveRoom(
+  ws: WebSocket | null,
+  userId: string
+): void {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try {
+      ws.send(JSON.stringify({ type: "leave", userId }));
+    } catch {
+      /* 送れなければ close 側で処理される */
+    }
+  }
+  try {
+    ws?.close(1000, "leave");
+  } catch {
+    /* 既に閉じている */
+  }
 }

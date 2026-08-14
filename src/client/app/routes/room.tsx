@@ -6,6 +6,7 @@ import {
   getRoomState,
   gmTokenStore,
   userIdStore,
+  joinRoom,
   startGame,
   resetRoom,
   leaveRoom,
@@ -55,23 +56,58 @@ export default function Room() {
       .then(setState)
       .catch(() => setToast("状態の取得に失敗しました"));
 
-    // WebSocket接続を設定
-    let ws = connectWs(id);
-    wsRef.current = ws;
+    // --- WebSocket 接続管理 ---------------------------------------------
+    // 以前は close のたびに無条件で1秒後に再接続しており、
+    // サーバがアイドルで部屋を畳んでも即座に叩き起こしてしまっていた。
+    // ここでは「サーバが意図的に閉じた場合は再接続しない」「それ以外は指数バックオフ」
+    // 「非表示中は再接続しない」の3点で、無駄な Durable Object の起動を止める。
+    let disposed = false;
+    let retry = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let rejoining = false;
 
-    ws.onopen = () => {
-      console.log("WebSocket connected");
+    /** バックグラウンド復帰などで自分が部屋から消えていたら入り直す */
+    const ensureMembership = async (room: Room) => {
+      const userId = userIdStore.load(id);
+      if (!userId) return; // そもそもこの部屋に参加していない
+      if (room.users.some((u) => u.id === userId)) return; // 在籍中
+      if (rejoining) return;
+      rejoining = true;
+      try {
+        const name = localStorage.getItem("playerName");
+        if (!name) return;
+        const iconRaw = localStorage.getItem("playerIcon");
+        let icon: string | number = 1;
+        try {
+          icon = iconRaw ? JSON.parse(iconRaw) : 1;
+        } catch {
+          icon = 1;
+        }
+        const jr = await joinRoom(id, { name, icon });
+        userIdStore.save(id, jr.userId);
+        setSelfId(jr.userId);
+        identify(jr.userId);
+      } catch {
+        /* 部屋がもう無い場合などは何もしない */
+      } finally {
+        rejoining = false;
+      }
     };
 
-    ws.onmessage = (event) => {
+    const identify = (userId: string) => {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "identify", userId }));
+      }
+    };
+
+    const handleMessage = (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data) as ServerMessage;
-        console.log("Received message:", msg);
 
         if (msg.type === "state") {
-          console.log("State received:", msg.room);
-          console.log("Setting state with status:", msg.room.status);
           setState(msg.room);
+          void ensureMembership(msg.room);
         }
         if (msg.type === "userJoined") {
           console.log("User joined:", msg.user);
@@ -253,63 +289,72 @@ export default function Room() {
       }
     };
 
-    ws.onclose = () => {
-      console.log("WebSocket closed, attempting reconnect...");
-      // simple retry
-      setTimeout(() => {
-        if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
-          const newWs = connectWs(id);
-          wsRef.current = newWs;
+    const open = () => {
+      if (disposed) return;
+      const ws = connectWs(id);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        retry = 0;
+        const userId = userIdStore.load(id);
+        if (userId) identify(userId);
+      };
+
+      ws.onmessage = handleMessage;
+
+      ws.onerror = () => {
+        /* close で後始末される */
+      };
+
+      ws.onclose = (ev) => {
+        if (disposed) return;
+        // サーバが部屋を畳んだ／自分から抜けた場合は再接続しない
+        if (ev.code === 1000 && (ev.reason === "room_closed" || ev.reason === "leave")) {
+          if (ev.reason === "room_closed") setToast("ルームが終了しました");
+          return;
         }
-      }, 1000);
-    };
-
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [id]);
-
-  // ページを離れる際やブラウザを閉じる際にユーザーを削除
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      const userId = selfId || userIdStore.load(id);
-      if (userId && state && !state.users.find((u) => u.id === userId)?.isGM) {
-        // GMではない場合のみ退出処理を実行
-        leaveRoom(id, userId);
-      }
+        // 非表示中は再接続しない（復帰時に visibilitychange で張り直す）
+        if (document.visibilityState === "hidden") return;
+        if (retry >= 6) return;
+        const delay = Math.min(30000, 1000 * 2 ** retry) + Math.random() * 500;
+        retry++;
+        retryTimer = setTimeout(open, delay);
+      };
     };
 
     const handleVisibilityChange = () => {
-      // ページが非表示になった時の処理
-      if (document.visibilityState === "hidden") {
-        const userId = selfId || userIdStore.load(id);
-        if (
-          userId &&
-          state &&
-          !state.users.find((u) => u.id === userId)?.isGM
-        ) {
-          leaveRoom(id, userId);
-        }
+      if (document.visibilityState !== "visible") return;
+      const ws = wsRef.current;
+      if (
+        !ws ||
+        ws.readyState === WebSocket.CLOSED ||
+        ws.readyState === WebSocket.CLOSING
+      ) {
+        retry = 0;
+        open();
       }
     };
 
-    // イベントリスナーを追加
-    window.addEventListener("beforeunload", handleBeforeUnload);
+    // 注: バックグラウンド遷移では意図的に何もしない。
+    // 以前は visibilitychange で leaveRoom() を呼び、そこで新しい WebSocket を
+    // 張っていたため、スマホでホームに戻るたびに Durable Object を起こして
+    // アイドルタイマーを再延長していた。ハイバネーション対応後は接続を
+    // 開けたままでも課金されないので、そのまま維持するのが最も安く、UXも良い。
+    // タブを閉じた場合はブラウザが接続を切り、サーバ側の close ハンドラが退出扱いにする。
+
+    open();
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    // クリーンアップ
     return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
+      disposed = true;
+      if (retryTimer) clearTimeout(retryTimer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      const userId = userIdStore.load(id);
+      if (userId) leaveRoom(wsRef.current, userId);
+      else wsRef.current?.close(1000, "leave");
+      wsRef.current = null;
     };
-  }, [id, selfId, state]);
+  }, [id]);
 
   const handleStartGame = async () => {
     const token = gmTokenStore.load(id);
