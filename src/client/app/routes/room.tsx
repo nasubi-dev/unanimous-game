@@ -84,7 +84,7 @@ export default function Room() {
         } catch {
           icon = 1;
         }
-        const jr = await joinRoom(id, { name, icon });
+        const jr = await joinRoom(id, { name, icon, rejoin: true });
         userIdStore.save(id, jr.userId);
         setSelfId(jr.userId);
         identify(jr.userId);

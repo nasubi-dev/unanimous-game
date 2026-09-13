@@ -82,7 +82,15 @@ export type CreateRoomResponse = {
 };
 export type CreateRoomRequest = { name: string; icon: string | number };
 
-export type JoinRoomRequest = { name: string; icon: string | number };
+export type JoinRoomRequest = {
+  name: string;
+  icon: string | number;
+  /**
+   * バックグラウンド復帰などで接続が切れたあとの入り直しなら true。
+   * 分析イベントを player_rejoined に分けるためだけに使い、部屋の挙動は変えない。
+   */
+  rejoin?: boolean;
+};
 export type JoinRoomResponse = { userId: string };
 
 // Settings Update

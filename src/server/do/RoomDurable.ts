@@ -175,6 +175,11 @@ export class RoomDurable {
   /**
    * writeDataPoint は同期的にキューイングされるので await しない。
    * await すると DO をその分だけ長く起こしておくことになる。
+   *
+   * doubles の並び: [timestamp, value, userCount, socketCount, durationMs, idleMs]
+   * value はイベントごとに意味が違う:
+   *   ws_disconnected … WebSocket の close code (1000 正常, 1001 離脱, 1006 異常切断)
+   *   それ以外        … 1（件数用）。ws_error は code が無いので 0
    */
   private sendAnalyticsEvent(
     eventType: string,
@@ -246,6 +251,7 @@ export class RoomDurable {
       const body = (await request.json().catch(() => ({}))) as {
         name?: string;
         icon?: string | number;
+        rejoin?: boolean;
       };
       const name = (body.name ?? "").toString().trim();
       const icon = body.icon !== undefined ? body.icon : 1;
@@ -256,7 +262,11 @@ export class RoomDurable {
       await this.saveRoom();
       await this.touchActivity();
 
-      this.sendAnalyticsEvent("player_joined", {
+      // スマホの背景復帰で接続が切れると player_left → 復帰時に入り直して
+      // player_joined になる。これを新規参加と同じイベントに混ぜると
+      // 「参加者数」が背景復帰の回数ぶん水増しされ、長い部屋ほど接続回数と
+      // 参加回数が比例して見えるため、分析側で「再接続ループ」と誤読される。
+      this.sendAnalyticsEvent(body.rejoin ? "player_rejoined" : "player_joined", {
         value: 1,
         userCount: this.room.users.length,
         socketCount: this.openSockets().length,
@@ -678,9 +688,12 @@ export class RoomDurable {
     }
   }
 
-  async webSocketClose(ws: WebSocket, _code: number, _reason: string) {
+  async webSocketClose(ws: WebSocket, code: number, _reason: string) {
     const att = ws.deserializeAttachment() as SocketAttachment | null;
+    // close code を残す。1001（タブを閉じた/移動）と 1006（ネットワーク断）が
+    // 区別できないと、短命接続が多い部屋の原因を切り分けられない。
     this.sendAnalyticsEvent("ws_disconnected", {
+      value: code,
       durationMs: att?.connectedAt ? Date.now() - att.connectedAt : 0,
       userCount: this.room?.users.length ?? 0,
       socketCount: this.openSockets(ws).length,
