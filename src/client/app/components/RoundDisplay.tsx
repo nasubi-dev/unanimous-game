@@ -217,6 +217,7 @@ export function RoundDisplay({
                     key={user.id}
                     user={user}
                     hasAnswered={hasAnswered}
+                    away={state.awayUserIds?.includes(user.id)}
                   />
                 );
               })}

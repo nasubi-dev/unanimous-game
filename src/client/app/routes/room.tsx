@@ -467,7 +467,11 @@ export default function Room() {
       {/* waiting中の画面 */}
       {state.status === "waiting" && (
         <>
-          <UsersList users={state.users} selfId={selfId} />
+          <UsersList
+            users={state.users}
+            selfId={selfId}
+            awayUserIds={state.awayUserIds}
+          />
 
           {/* ルーム設定 */}
           <RoomSettings state={state} setState={setState} setToast={setToast} />

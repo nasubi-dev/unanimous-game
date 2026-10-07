@@ -4,9 +4,10 @@ import { getIconPath } from "../lib/icons";
 interface UsersListProps {
   users: User[];
   selfId: string | null;
+  awayUserIds?: string[];
 }
 
-export function UsersList({ users, selfId }: UsersListProps) {
+export function UsersList({ users, selfId, awayUserIds = [] }: UsersListProps) {
   return (
     <div className="mb-6">
       <h2 className="text-xl font-bold mb-4">参加者</h2>
@@ -15,6 +16,8 @@ export function UsersList({ users, selfId }: UsersListProps) {
           <div
             key={user.id}
             className={`flex flex-col items-center rounded-lg border-2 ${
+              awayUserIds.includes(user.id) ? "opacity-50 " : ""
+            }${
               user.id === selfId
                 ? "bg-blue-50 border-blue-200"
                 : "bg-gray-50 border-gray-200"
@@ -37,6 +40,11 @@ export function UsersList({ users, selfId }: UsersListProps) {
               {user.isGM && (
                 <span className="bg-amber-100 text-amber-700 text-sm px-2 py-1 rounded">
                   GM
+                </span>
+              )}
+              {awayUserIds.includes(user.id) && (
+                <span className="bg-gray-200 text-gray-600 text-sm px-2 py-1 rounded">
+                  離席中
                 </span>
               )}
             </div>

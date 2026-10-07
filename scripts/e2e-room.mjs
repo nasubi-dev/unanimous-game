@@ -1,6 +1,6 @@
 // ルームの一連の流れ（作成→参加→開始→お題→回答→オープン→判定→退出→破棄）の疎通確認。
 //
-//   npx wrangler dev --port 8788 --local
+//   npx wrangler dev --port 8788 --local --var DISCONNECT_GRACE_MS:2000
 //   node scripts/e2e-room.mjs
 //
 // ハイバネーション化した RoomDurable の疎通確認
@@ -141,15 +141,44 @@ const judged = await (
 ).json();
 check("判定（勝利条件2回なのでまだ終わらない）", judged.ok && !judged.gameFinished, JSON.stringify(judged));
 
-// 9. 切断で退出扱いになるか
+// 9. 切断してもすぐには退出させない（スリープ・バックグラウンド対策）
+//    DISCONNECT_GRACE_MS:2000 で起動している前提
+const leftCount = () =>
+  events.filter((e) => e.label === "gm" && e.type === "userLeft").length;
+const p2Id = joined.userId;
+const inRoom = async () =>
+  (await (await fetch(`${BASE}/api/rooms/${roomId}/state`)).json()).users.some(
+    (u) => u.id === p2Id,
+  );
+
+// 9a. 新しい接続で戻ってから古い接続の close が遅れて届く（iOS の復帰でよくある順番）
+const p2Back = await openWs(roomId, "p2", events);
+p2Back.send(JSON.stringify({ type: "identify", userId: p2Id }));
+await sleep(200);
 p2Ws.close();
+await sleep(2600);
+check("復帰後に古い接続が閉じても在籍が続く", await inRoom());
+
+// 9b. 切断 → 猶予中に同じ userId で戻る
+p2Back.close();
 await sleep(400);
+check("切断直後はまだ users に残る", await inRoom());
 st = await (await fetch(`${BASE}/api/rooms/${roomId}/state`)).json();
-check("切断したプレイヤーが users から消える", st.users.length === 1, `users=${st.users.length}`);
-check(
-  "GM に userLeft が届く",
-  events.some((e) => e.label === "gm" && e.type === "userLeft"),
-);
+check("離席中として awayUserIds に載る", st.awayUserIds?.includes(p2Id), JSON.stringify(st.awayUserIds));
+const p2Again = await openWs(roomId, "p2", events);
+p2Again.send(JSON.stringify({ type: "identify", userId: p2Id }));
+await sleep(2600);
+check("猶予中に戻れば在籍が続く", await inRoom());
+st = await (await fetch(`${BASE}/api/rooms/${roomId}/state`)).json();
+check("戻ったら awayUserIds から外れる", st.awayUserIds?.length === 0, JSON.stringify(st.awayUserIds));
+check("戻った場合は userLeft が出ない", leftCount() === 0, `userLeft=${leftCount()}`);
+
+// 9c. 戻らなければ猶予後に退出扱い
+p2Again.close();
+await sleep(3000);
+st = await (await fetch(`${BASE}/api/rooms/${roomId}/state`)).json();
+check("猶予が切れたら users から消える", st.users.length === 1, `users=${st.users.length}`);
+check("GM に userLeft が届く", leftCount() === 1, `userLeft=${leftCount()}`);
 
 // 10. gm-return-home で部屋が破棄される
 const homeRes = await fetch(`${BASE}/api/rooms/${roomId}/gm-return-home`, {

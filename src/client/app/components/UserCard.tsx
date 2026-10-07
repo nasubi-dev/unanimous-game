@@ -7,9 +7,10 @@ interface UserCardProps {
   hasAnswered?: boolean;
   answer?: string;
   mode?: "status" | "result";
+  away?: boolean;
 }
 
-export function UserCard({ user, hasAnswered, answer, mode = "status" }: UserCardProps) {
+export function UserCard({ user, hasAnswered, answer, mode = "status", away = false }: UserCardProps) {
   const { ref, handleTap } = useCardTap<HTMLDivElement>();
   
   // modeプロパティで表示モードを判定
@@ -23,6 +24,8 @@ export function UserCard({ user, hasAnswered, answer, mode = "status" }: UserCar
       ref={ref}
       onClick={handleTap}
       className={`relative p-6 pb-2 rounded-lg border-2 min-h-[120px] cursor-pointer transition-colors ${
+        away ? "opacity-50 " : ""
+      }${
         isResultMode
           ? "bg-violet-50 border-violet-200 hover:bg-violet-100"
           : hasAnswered
@@ -56,6 +59,8 @@ export function UserCard({ user, hasAnswered, answer, mode = "status" }: UserCar
             ? (answer || "未回答")
             : hasAnswered 
             ? "✓ 回答済み" 
+            : away
+            ? "離席中"
             : "回答待ち..."}
         </div>
         <div className="font-medium text-sm">{user.name}</div>

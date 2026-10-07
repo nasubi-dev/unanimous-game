@@ -37,6 +37,7 @@ export type Room = {
   status: "waiting" | "playing" | "finished";
   rounds: Round[];
   gameResult?: "win" | "lose"; // 終了時の結果
+  awayUserIds?: string[]; // 接続が切れて復帰待ちのプレイヤー（送信時にサーバが付ける）
 };
 
 // --- WS/Event types (minimal for first step) ---

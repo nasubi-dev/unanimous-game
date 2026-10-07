@@ -21,6 +21,7 @@ export interface Env {
   /** 部屋のクリーンアップ間隔（ミリ秒）。未設定なら既定値。検証用に上書きできる。 */
   IDLE_TIMEOUT_MS?: string;
   EMPTY_ROOM_CLEANUP_MS?: string;
+  DISCONNECT_GRACE_MS?: string;
 }
 
 /** WebSocket に紐づけてハイバネーションを跨いで保持する情報 */
@@ -36,8 +37,12 @@ type RoomMeta = {
   lastActivityAt: number;
 };
 
+/** 接続が切れたプレイヤーの退出期限（userId → 期限の epoch ms） */
+type AwayDeadlines = Record<string, number>;
+
 const KEY_ROOM = "room";
 const KEY_META = "meta";
+const KEY_AWAY = "away";
 
 /**
  * 課金される duration（DO がメモリに常駐していた時間）を最小化するための方針:
@@ -55,11 +60,13 @@ export class RoomDurable {
   // storage のインメモリキャッシュ（ハイバネーション後は再ロードされる）
   private room: Room | null = null;
   private meta: RoomMeta | null = null;
+  private away: AwayDeadlines = {};
 
   // ハイバネーション導入後、この待ち時間は storage.setAlarm() で待つので
   // duration には計上されない。UX を壊さない範囲で余裕を持たせてよい。
   private readonly IDLE_TIMEOUT_MS: number; // 最終操作から部屋を閉じるまで
   private readonly EMPTY_ROOM_CLEANUP_MS: number; // 接続ゼロから片付けるまで
+  private readonly DISCONNECT_GRACE_MS: number; // 切断から退出扱いにするまで
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -67,14 +74,18 @@ export class RoomDurable {
     this.IDLE_TIMEOUT_MS = Number(env.IDLE_TIMEOUT_MS) || 20 * 60 * 1000;
     this.EMPTY_ROOM_CLEANUP_MS =
       Number(env.EMPTY_ROOM_CLEANUP_MS) || 3 * 60 * 1000;
+    this.DISCONNECT_GRACE_MS =
+      Number(env.DISCONNECT_GRACE_MS) || 2 * 60 * 1000;
     // ハイバネーションから復帰したときのために storage から状態を復元する
     this.state.blockConcurrencyWhile(async () => {
-      const [room, meta] = await Promise.all([
+      const [room, meta, away] = await Promise.all([
         this.state.storage.get<Room>(KEY_ROOM),
         this.state.storage.get<RoomMeta>(KEY_META),
+        this.state.storage.get<AwayDeadlines>(KEY_AWAY),
       ]);
       this.room = room ?? null;
       this.meta = meta ?? null;
+      this.away = away ?? {};
     });
   }
 
@@ -86,6 +97,15 @@ export class RoomDurable {
 
   private async saveMeta() {
     if (this.meta) await this.state.storage.put(KEY_META, this.meta);
+  }
+
+  private async saveAway() {
+    await this.state.storage.put(KEY_AWAY, this.away);
+  }
+
+  /** クライアントに送る部屋の状態。離席中のプレイヤーを添える */
+  private view(): Room {
+    return { ...this.room!, awayUserIds: Object.keys(this.away) };
   }
 
   /**
@@ -103,9 +123,11 @@ export class RoomDurable {
   private async scheduleCleanupAlarm() {
     if (!this.meta) return;
     const hasSockets = this.openSockets().length > 0;
-    const deadline =
+    const deadline = Math.min(
       this.meta.lastActivityAt +
-      (hasSockets ? this.IDLE_TIMEOUT_MS : this.EMPTY_ROOM_CLEANUP_MS);
+        (hasSockets ? this.IDLE_TIMEOUT_MS : this.EMPTY_ROOM_CLEANUP_MS),
+      ...Object.values(this.away),
+    );
     const current = await this.state.storage.getAlarm();
     // 秒単位のブレで毎回書き直さない（storage write を節約）
     if (current === null || Math.abs(current - deadline) > 5000) {
@@ -128,6 +150,14 @@ export class RoomDurable {
       return;
     }
     const now = Date.now();
+    // 猶予が切れたプレイヤーを退出させる（アラームは1つしか持てないので相乗り）
+    const expired = Object.keys(this.away).filter((id) => this.away[id] <= now);
+    if (expired.length) {
+      for (const userId of expired) delete this.away[userId];
+      await this.saveAway();
+      for (const userId of expired) await this.removeUserById(userId);
+    }
+
     const sockets = this.openSockets();
     const limit = sockets.length
       ? this.IDLE_TIMEOUT_MS
@@ -139,7 +169,9 @@ export class RoomDurable {
       return;
     }
     // まだ期限前なら残り時間で張り直す（DO は再び眠る）
-    await this.state.storage.setAlarm(this.meta.lastActivityAt + limit);
+    await this.state.storage.setAlarm(
+      Math.min(this.meta.lastActivityAt + limit, ...Object.values(this.away)),
+    );
   }
 
   /** 部屋を完全に破棄する。以降 DO は空になり、メモリからも退避できる。 */
@@ -166,6 +198,7 @@ export class RoomDurable {
 
     this.room = null;
     this.meta = null;
+    this.away = {};
     await this.state.storage.deleteAlarm();
     await this.state.storage.deleteAll();
   }
@@ -280,7 +313,7 @@ export class RoomDurable {
       if (!this.room)
         return new Response("Room not initialized", { status: 404 });
       // state 取得はアイドル判定上の「操作」に数えない（ポーリングで延命させないため）
-      return Response.json(this.room);
+      return Response.json(this.view());
     }
 
     if (
@@ -307,7 +340,7 @@ export class RoomDurable {
       } satisfies ServerMessage);
       this.broadcast({
         type: "state",
-        room: this.room,
+        room: this.view(),
       } satisfies ServerMessage);
       return Response.json({ ok: true });
     }
@@ -338,7 +371,7 @@ export class RoomDurable {
 
       this.broadcast({
         type: "gameStarted",
-        room: this.room,
+        room: this.view(),
       } satisfies ServerMessage);
       this.broadcast({
         type: "roundCreated",
@@ -522,7 +555,7 @@ export class RoomDurable {
         this.room.gameResult = winResult.isWin ? "win" : "lose";
         this.broadcast({
           type: "gameFinished",
-          room: this.room,
+          room: this.view(),
           gameResult: this.room.gameResult,
         } satisfies ServerMessage);
       }
@@ -562,7 +595,7 @@ export class RoomDurable {
 
       this.broadcast({
         type: "state",
-        room: this.room,
+        room: this.view(),
       } satisfies ServerMessage);
       return Response.json({ ok: true });
     }
@@ -618,7 +651,7 @@ export class RoomDurable {
     server.send(
       JSON.stringify({
         type: "state",
-        room: this.room,
+        room: this.view(),
       } satisfies ServerMessage),
     );
 
@@ -652,7 +685,7 @@ export class RoomDurable {
         ws.send(
           JSON.stringify({
             type: "state",
-            room: this.room,
+            room: this.view(),
           } satisfies ServerMessage),
         );
       return;
@@ -665,6 +698,21 @@ export class RoomDurable {
       }) as SocketAttachment;
       att.userId = msg.userId;
       ws.serializeAttachment(att);
+      // 猶予中に戻ってきたら退出を取り消す（userId が変わらないので
+      // 出題者・回答済みの記録がそのまま使える）
+      const deadline = this.away[msg.userId];
+      if (deadline !== undefined) {
+        delete this.away[msg.userId];
+        await this.saveAway();
+        this.sendAnalyticsEvent("player_returned", {
+          value: 1,
+          durationMs: Date.now() - (deadline - this.DISCONNECT_GRACE_MS),
+          userCount: this.room?.users.length ?? 0,
+          socketCount: this.openSockets().length,
+        });
+        this.broadcast({ type: "state", room: this.view() } satisfies ServerMessage);
+        await this.scheduleCleanupAlarm();
+      }
       return;
     }
 
@@ -683,6 +731,11 @@ export class RoomDurable {
     }
 
     if (msg.type === "leave") {
+      // 明示的な退出は猶予を置かずに即座に外す
+      if (this.away[msg.userId] !== undefined) {
+        delete this.away[msg.userId];
+        await this.saveAway();
+      }
       await this.removeUserById(msg.userId);
       return;
     }
@@ -713,17 +766,49 @@ export class RoomDurable {
 
   /**
    * 接続が消えたときの共通処理。
+   *
+   * 切断だけでは退出させず、DISCONNECT_GRACE_MS の猶予を置く。
+   * スマホのスリープやバックグラウンドでも WebSocket は切れるが、
+   * 即座に外すと復帰時に新しい userId で入り直すことになり、
+   * 出題者（setterId）や回答済みの記録が旧 userId のまま宙に浮く。
+   * 猶予中に同じ userId で identify すれば何も起きなかったことになる。
+   *
    * 「接続がゼロになったら短時間で畳む」判定は users 配列ではなく
    * 実際の接続数で行う（GM は users から消えないため）。
    */
   private async onSocketGone(ws: WebSocket, userId?: string) {
-    if (userId) await this.removeUserById(userId);
-    if (this.openSockets(ws).length === 0 && this.meta) {
-      // 誰も繋がっていないので EMPTY_ROOM_CLEANUP_MS 後に片付ける
-      await this.state.storage.setAlarm(
-        Date.now() + this.EMPTY_ROOM_CLEANUP_MS,
-      );
+    if (userId && this.shouldWaitForReturn(ws, userId)) {
+      this.away[userId] = Date.now() + this.DISCONNECT_GRACE_MS;
+      await this.saveAway();
+      this.broadcast({ type: "state", room: this.view() } satisfies ServerMessage);
     }
+    if (!this.meta) return;
+    if (this.openSockets(ws).length === 0) {
+      // 誰も繋がっていないので EMPTY_ROOM_CLEANUP_MS 後に片付ける
+      // （猶予の期限が先に来るならそちらで起きる）
+      await this.state.storage.setAlarm(
+        Math.min(
+          Date.now() + this.EMPTY_ROOM_CLEANUP_MS,
+          ...Object.values(this.away),
+        ),
+      );
+    } else {
+      await this.scheduleCleanupAlarm();
+    }
+  }
+
+  /** 切れた接続のユーザーを猶予つきの「離席中」にすべきか */
+  private shouldWaitForReturn(ws: WebSocket, userId: string): boolean {
+    const user = this.room?.users.find((u) => u.id === userId);
+    // 既に退出済み（leave を受けた後の close など）、または GM は対象外
+    if (!user || user.isGM) return false;
+    // 復帰後の新しい接続が先に identify 済みで、古い接続の close が
+    // 遅れて届いた場合は、在籍が続いているので何もしない
+    return !this.openSockets(ws).some(
+      (other) =>
+        (other.deserializeAttachment() as SocketAttachment | null)?.userId ===
+        userId,
+    );
   }
 
   private broadcast(payload: unknown) {
@@ -938,7 +1023,7 @@ export class RoomDurable {
     } satisfies ServerMessage);
     this.broadcast({
       type: "state",
-      room: this.room,
+      room: this.view(),
     } satisfies ServerMessage);
   }
 }
