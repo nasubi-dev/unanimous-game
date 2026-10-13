@@ -12,6 +12,7 @@ import {
   leaveRoom,
   gmReturnHome,
 } from "../lib/api";
+import { getOrCreatePlayerName, getOrCreatePlayerIcon } from "../lib/player";
 import type { Room, ServerMessage } from "../../../shared/types";
 import {
   UsersList,
@@ -46,6 +47,7 @@ export default function Room() {
   const [toast, setToast] = useState<string | null>(null);
   const [selfId, setSelfId] = useState<string | null>(null);
   const [showCountdown, setShowCountdown] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     // まず状態とselfIdを設定
@@ -374,6 +376,33 @@ export default function Room() {
     };
   }, [id]);
 
+  // URL を直接開いた人は userId を持たないまま部屋を見ている。
+  // 以前はここから参加する手段がなく、開いては閉じるだけになっていた
+  // （短命接続が多い部屋として日次レポートに載っていた）。
+  const handleJoin = async () => {
+    setJoining(true);
+    try {
+      const jr = await joinRoom(id, {
+        name: getOrCreatePlayerName(),
+        icon: getOrCreatePlayerIcon(),
+      });
+      userIdStore.save(id, jr.userId);
+      setSelfId(jr.userId);
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "identify", userId: jr.userId }));
+      }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        setToast("ルームが見つかりません");
+      } else {
+        setToast("参加に失敗しました");
+      }
+    } finally {
+      setJoining(false);
+    }
+  };
+
   const handleStartGame = async () => {
     const token = gmTokenStore.load(id);
     if (!token) {
@@ -463,6 +492,29 @@ export default function Room() {
     <Expanded room={state}>
       {/* カウントダウン表示 */}
       {showCountdown && <GameStartCountdown />}
+
+      {/* URL から直接来てまだ参加していない人向け */}
+      {!selfId && !isGM && (
+        <div className="mx-auto max-w-[420px] w-full px-4 mb-6">
+          {state.status === "waiting" ? (
+            <AnimatedButton
+              onClick={handleJoin}
+              variant="success"
+              size="lg"
+              className="w-full font-medium"
+              disabled={joining}
+            >
+              このルームに参加
+            </AnimatedButton>
+          ) : (
+            <p className="text-center text-gray-600">
+              {state.status === "playing"
+                ? "ゲーム中のため、次のゲームから参加できます"
+                : "GM が次のゲームを準備すると参加できます"}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* waiting中の画面 */}
       {state.status === "waiting" && (

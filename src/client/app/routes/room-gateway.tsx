@@ -8,7 +8,7 @@ import {
   gmTokenStore,
   userIdStore,
 } from "../lib/api";
-import { getIconForName } from "../lib/icons";
+import { getOrCreatePlayerName, getOrCreatePlayerIcon } from "../lib/player";
 import { Expanded } from "../components";
 
 export function meta({}: Route.MetaArgs) {
@@ -23,36 +23,6 @@ export function meta({}: Route.MetaArgs) {
     { name: "twitter:description", content: "全員一致ゲームのルームを作成したり、既存のルームに参加できます。" },
     { name: "twitter:image", content: "https://zennin-icchi.nasubi.dev/ogp/twitter.png" },
   ];
-}
-
-function getOrCreatePlayerName(): string {
-  let name = localStorage.getItem("playerName") || "";
-  if (!name) {
-    name = `guest${Math.floor(1000 + Math.random() * 9000)}`;
-    localStorage.setItem("playerName", name);
-  }
-  return name;
-}
-
-function getOrCreatePlayerIcon(): string | number {
-  const saved = localStorage.getItem("playerIcon");
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      // パースに失敗した場合は名前に基づいてアイコンを設定
-      const playerName = getOrCreatePlayerName();
-      const newIcon = getIconForName(playerName);
-      localStorage.setItem("playerIcon", JSON.stringify(newIcon));
-      return newIcon;
-    }
-  } else {
-    // 初回は名前に基づいてアイコンを設定
-    const playerName = getOrCreatePlayerName();
-    const newIcon = getIconForName(playerName);
-    localStorage.setItem("playerIcon", JSON.stringify(newIcon));
-    return newIcon;
-  }
 }
 
 export default function RoomGateway() {
